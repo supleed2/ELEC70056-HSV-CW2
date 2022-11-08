@@ -36,22 +36,22 @@
 
 
 module AHBGPIO
-( input wire HCLK
-, input wire HRESETn
-, input wire [31:0] HADDR
-, input wire [1:0] HTRANS
-, input wire [31:0] HWDATA
-, input wire HWRITE
-, input wire HSEL
-, input wire HREADY
-, input wire [16:0] GPIOIN
-, input wire PARITYSEL
-, input wire INJECT_FAULT
+( input  wire        HCLK
+, input  wire        HRESETn
+, input  wire [31:0] HADDR
+, input  wire [ 1:0] HTRANS
+, input  wire [31:0] HWDATA
+, input  wire        HWRITE
+, input  wire        HSEL
+, input  wire        HREADY
+, input  wire [16:0] GPIOIN
+, input  wire        PARITYSEL
+, input  wire        INJECT_FAULT
 	//Output
-, output wire HREADYOUT
+, output wire        HREADYOUT
 , output wire [31:0] HRDATA
 , output wire [16:0] GPIOOUT
-, output wire PARITYERR
+, output wire        PARITYERR
 );
 
   localparam [7:0] gpio_data_addr = 8'h00;
@@ -64,16 +64,16 @@ module AHBGPIO
   reg [15:0] gpio_dir;
   reg [15:0] gpio_data_next;
   reg [31:0] last_HADDR;
-  reg [1:0] last_HTRANS;
-  reg last_HWRITE;
-  reg last_HSEL;
+  reg [ 1:0] last_HTRANS;
+  reg        last_HWRITE;
+  reg        last_HSEL;
 
   integer i;
 
   assign HREADYOUT = 1'b1;
 
 // Set Registers from address phase
-  always @(posedge HCLK)
+  always_ff @(posedge HCLK)
     if(HREADY) begin
       last_HADDR <= HADDR;
       last_HTRANS <= HTRANS;
@@ -82,14 +82,14 @@ module AHBGPIO
     end
 
   // Update in/out switch
-  always @(posedge HCLK, negedge HRESETn)
+  always_ff @(posedge HCLK, negedge HRESETn)
     if(!HRESETn)
       gpio_dir <= 16'h0000;
     else if ((last_HADDR[7:0] == gpio_dir_addr) & last_HSEL & last_HWRITE & last_HTRANS[1])
       gpio_dir <= HWDATA[15:0];
 
   // Update output value
-  always @(posedge HCLK, negedge HRESETn)
+  always_ff @(posedge HCLK, negedge HRESETn)
     if(!HRESETn)
       {gpio_parityout, gpio_dataout} <= 17'd0;
     else if ((gpio_dir == 16'h0001) & (last_HADDR[7:0] == gpio_data_addr) & last_HSEL & last_HWRITE & last_HTRANS[1]) begin
@@ -98,7 +98,7 @@ module AHBGPIO
     end
 
   // Update input value
-  always @(posedge HCLK, negedge HRESETn)
+  always_ff @(posedge HCLK, negedge HRESETn)
     if(!HRESETn)
       gpio_datain <= 16'h0000;
     else if (gpio_dir == 16'h0000) begin
@@ -111,5 +111,42 @@ module AHBGPIO
   assign HRDATA[15:0] = gpio_datain;
   assign GPIOOUT = {gpio_parityout, gpio_dataout};
   assign PARITYERR = gpio_parityerr;
+
+  //check behaviour
+    
+  assert_parity: assert property
+    ( @posedge(HCLK) disable iff (!HRESETn)
+      !PARITYERR;
+    );
+
+  assert_gpio_write: assert property
+    ( @posedge(HCLK) disable iff (!HRESETn)
+      ((gpio_dir == 16'h0001)
+        && (HADDR[7:0] == gpio_data_addr)
+        && HSEL
+        && HWRITE
+        && HTRANS[1])
+      |-> (GPIOOUT[15:0] == $past(HWDATA[15:0], 1))
+    );
+
+  assert_gpio_read: assert property
+    ( @posedge(HCLK) disable iff (!HRESETn)
+      ((gpio_dir == 16'h0000)
+        && (HADDR[7:0] == gpio_data_addr)
+        // && HSEL // HSEL not used in Read always_ff
+        && !HWRITE
+        && HTRANS[1])
+      |-> (HRDATA[15:0] == $past(GPIOIN[15:0], 1)
+           && HREADYOUT)
+    );
+
+  assert_gpio_dir: assert property
+    ( @posedge(HCLK) disable iff (!HRESETn)
+      ((HADDR[7:0] == gpio_dir_addr)
+        && HSEL
+        && HWRITE
+        && HTRANS[1])
+      |-> (gpio_dir == $past(HWDATA[15:0], 1))
+    );
 
 endmodule
