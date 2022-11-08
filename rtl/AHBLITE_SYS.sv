@@ -38,8 +38,8 @@
 module AHBLITE_SYS(
     //CLOCKS & RESET
     	input	wire            CLK,
-    	input  	wire            RESET, 
-    
+    	input  	wire            RESET,
+
     //TO BOARD LEDs
     	output  wire    [7:0]   LED,
 
@@ -52,16 +52,17 @@ module AHBLITE_SYS(
 	output 	wire	[1:0]		VGABLUE,
 	output 	wire			HSYNC,     	//VGA Horizontal Sync
 	output 	wire			VSYNC,     	//VGA Vertical Sync
-	
+
 
     // Debug
     	input   wire            TCK_SWCLK,               // SWD Clk / JTAG TCK
     	input   wire            TDI_NC,                  // NC      / JTAG TDI
     	inout   wire            TMS_SWDIO,               // SWD I/O / JTAG TMS
-    	output  wire            TDO_SWO                  // SW  Out / JTAG TDO
+    	output  wire            TDO_SWO,                 // SW  Out / JTAG TDO
+        output  wire            VGA_MISMATCH
 );
- 
-//AHB-LITE SIGNALS 
+
+//AHB-LITE SIGNALS
 //Global Signals
 wire 			HCLK;
 wire 			HRESETn;
@@ -104,6 +105,15 @@ wire            	lockup;
 wire            	lockup_reset_req;
 wire            	sys_reset_req;
 
+// VGA Redundant Signals
+wire [31:0] 		HRDATA_VGA_2;
+wire 			    HREADYOUT_VGA_2;
+wire                HSYNC_2;
+wire                VSYNC_2;
+wire [2:0]          VGARED_2,
+wire [2:0]          VGAGREEN_2,
+wire [1:0]          VGABLUE_2,
+
 //SYSTEM GENERATES NO ERROR RESPONSE
 assign 			HRESP = 1'b0;
 
@@ -115,14 +125,14 @@ wire            	fclk;                 // Free running clock
 // Reset
 wire            	reset_n = RESET;
 
-// Clock divider, divide the frequency by two, hence less time constraint 
+// Clock divider, divide the frequency by two, hence less time constraint
 reg clk_div;
 always @(posedge CLK)
 begin
     clk_div=~clk_div;
 end
 
-assign fclk = clk_div; 
+assign fclk = clk_div;
 
 // Reset synchronizer
 reg  [4:0]     		reset_sync_reg;
@@ -228,11 +238,11 @@ CORTEXM0INTEGRATION u_CORTEXM0INTEGRATION (
     .RSTBYPASS     (1'b0)
 );
 
-//Address Decoder 
+//Address Decoder
 
 AHBDCD uAHBDCD (
     	.HADDR(HADDR[31:0]),
-     
+
 	.HSEL_S0(HSEL_MEM),
 	.HSEL_S1(HSEL_VGA),
     	.HSEL_S2(),
@@ -244,7 +254,7 @@ AHBDCD uAHBDCD (
     	.HSEL_S8(),
     	.HSEL_S9(),
     	.HSEL_NOMAP(),
-     
+
 	.MUX_SEL(MUX_SEL[3:0])
 );
 
@@ -254,7 +264,7 @@ AHBMUX uAHBMUX (
 	.HCLK(HCLK),
 	.HRESETn(HRESETn),
 	.MUX_SEL(MUX_SEL[3:0]),
-	 
+
 	.HRDATA_S0(HRDATA_MEM),
 	.HRDATA_S1(HRDATA_VGA),
 	.HRDATA_S2(32'h00000000),
@@ -266,7 +276,7 @@ AHBMUX uAHBMUX (
 	.HRDATA_S8(32'h00000000),
 	.HRDATA_S9(32'h00000000),
 	.HRDATA_NOMAP(32'hDEADBEEF),
-	 
+
 	.HREADYOUT_S0(HREADYOUT_MEM),
 	.HREADYOUT_S1(HREADYOUT_VGA),
 	.HREADYOUT_S2(1'b1),
@@ -278,7 +288,7 @@ AHBMUX uAHBMUX (
 	.HREADYOUT_S8(1'b1),
 	.HREADYOUT_S9(1'b1),
 	.HREADYOUT_NOMAP(1'b1),
-    
+
 	.HRDATA(HRDATA[31:0]),
 	.HREADY(HREADY)
 );
@@ -290,37 +300,68 @@ AHBMUX uAHBMUX (
 AHB2MEM uAHB2MEM (
 	//AHBLITE Signals
 	.HSEL(HSEL_MEM),
-	.HCLK(HCLK), 
-	.HRESETn(HRESETn), 
-	.HREADY(HREADY),     
+	.HCLK(HCLK),
+	.HRESETn(HRESETn),
+	.HREADY(HREADY),
 	.HADDR(HADDR),
-	.HTRANS(HTRANS[1:0]), 
+	.HTRANS(HTRANS[1:0]),
 	.HWRITE(HWRITE),
 	.HSIZE(HSIZE),
-	.HWDATA(HWDATA[31:0]), 
-	
-	.HRDATA(HRDATA_MEM), 
+	.HWDATA(HWDATA[31:0]),
+
+	.HRDATA(HRDATA_MEM),
 	.HREADYOUT(HREADYOUT_MEM)
 );
 
 // AHBLite VGA Peripheral
 AHBVGA uAHBVGA (
-    .HCLK(HCLK), 
-    .HRESETn(HRESETn), 
-    .HADDR(HADDR), 
-    .HWDATA(HWDATA), 
-    .HREADY(HREADY), 
-    .HWRITE(HWRITE), 
-    .HTRANS(HTRANS), 
-    .HSEL(HSEL_VGA), 
-    .HRDATA(HRDATA_VGA), 
-    .HREADYOUT(HREADYOUT_VGA), 
-    .HSYNC(HSYNC), 
-    .VSYNC(VSYNC), 
+    .HCLK(HCLK),
+    .HRESETn(HRESETn),
+    .HADDR(HADDR),
+    .HWDATA(HWDATA),
+    .HREADY(HREADY),
+    .HWRITE(HWRITE),
+    .HTRANS(HTRANS),
+    .HSEL(HSEL_VGA),
+    .HRDATA(HRDATA_VGA),
+    .HREADYOUT(HREADYOUT_VGA),
+    .HSYNC(HSYNC),
+    .VSYNC(VSYNC),
     .RGB({VGARED,VGAGREEN,VGABLUE})
     );
 
-// AHBLite GPIO	
+// AHBLite VGA Peripheral (Redundant)
+AHBVGA uAHBVGA2 (
+    .HCLK(HCLK),
+    .HRESETn(HRESETn),
+    .HADDR(HADDR),
+    .HWDATA(HWDATA),
+    .HREADY(HREADY),
+    .HWRITE(HWRITE),
+    .HTRANS(HTRANS),
+    .HSEL(HSEL_VGA),
+    .HRDATA(HRDATA_VGA_2),
+    .HREADYOUT(HREADYOUT_VGA_2),
+    .HSYNC(HSYNC_2),
+    .VSYNC(VSYNC_2),
+    .RGB({VGARED_2,VGAGREEN_2,VGABLUE_2})
+    );
+
+VGACOMPARATOR uVGACOMPARATOR (
+    .HRDATA1    (HRDATA_VGA),
+    .HREADYOUT1 (HREADYOUT_VGA),
+    .HSYNC1     (HSYNC),
+    .VSYNC1     (VSYNC),
+    .RGB1       ({VGARED,VGAGREEN,VGABLUE}),
+    .HRDATA2    (HRDATA_VGA_2),
+    .HREADYOUT2 (HREADYOUT_VGA_2),
+    .HSYNC2     (HSYNC_2),
+    .VSYNC2     (VSYNC_2),
+    .RGB2       ({VGARED_2,VGAGREEN_2,VGABLUE_2}),
+    .MISMATCH   (VGA_MISMATCH)
+);
+
+// AHBLite GPIO
 AHBGPIO uAHBGPIO(
 	.HCLK(HCLK),
 	.HRESETn(HRESETn),
@@ -333,9 +374,9 @@ AHBGPIO uAHBGPIO(
 	.HSEL(HSEL_GPIO),
 	.HRDATA(HRDATA_GPIO),
 	.HREADYOUT(HREADYOUT_GPIO),
-    
+
 	.GPIOIN({8'b00000000,SW[7:0]}),
 	.GPIOOUT(LED[7:0])
 	);
-	
+
 endmodule
