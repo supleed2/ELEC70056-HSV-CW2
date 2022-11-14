@@ -1,172 +1,190 @@
 //stub
 interface ahb_gpio_if;
 
-	typedef enum bit[1:0] {
-		IDLE = 2'b00,
-		BUSY = 2'b01,
-		NONSEQUENTIAL = 2'b10,
-		SEQUENTIAL = 2'b11
-	} htrans_types;
+  typedef enum bit[1:0] {
+    IDLE = 2'b00,
+    BUSY = 2'b01,
+    NONSEQUENTIAL = 2'b10,
+    SEQUENTIAL = 2'b11
+  } htrans_types;
 
-	logic 			HCLK;
-	logic 			HRESETn;
-	logic [31:0]	HADDR;
-	logic [1:0]	    HTRANS;
-	logic [31:0]	HWDATA;
-	logic 			HWRITE;
-	logic 			HSEL;
-	logic 			HREADY;
-	logic 			HREADYOUT;
-	logic [31:0]	HRDATA;
+  logic        HCLK;
+  logic        HRESETn;
+  logic [31:0] HADDR;
+  logic [ 1:0] HTRANS;
+  logic [31:0] HWDATA;
+  logic        HWRITE;
+  logic        HSEL;
+  logic        HREADY;
+  logic        HREADYOUT;
+  logic [31:0] HRDATA;
 
-	logic [15:0]	GPIOIN;
-	logic [15:0]	GPIOOUT;
+  logic [16:0] GPIOIN;
+  logic [16:0] GPIOOUT;
 
-	modport	DUT	(input HCLK, HRESETn, HADDR, HTRANS, HWDATA, HWRITE, HSEL, HREADY, GPIOIN,
-				 output HREADYOUT, HRDATA, GPIOOUT);
+  modport DUT
+  ( input HCLK, HRESETn, HADDR, HTRANS, HWDATA, HWRITE, HSEL, HREADY, GPIOIN,
+    output HREADYOUT, HRDATA, GPIOOUT
+  );
 
-	modport  TB (input HCLK, HREADYOUT, HRDATA, GPIOOUT,
-				output HRESETn, HREADY, HADDR, HTRANS, HWDATA, HWRITE, HSEL, GPIOIN);
+  modport TB
+  ( input HCLK, HREADYOUT, HRDATA, GPIOOUT,
+    output HRESETn, HREADY, HADDR, HTRANS, HWDATA, HWRITE, HSEL, GPIOIN
+  );
 endinterface
 
+module ahb_gpio_tb;
+  localparam [7:0] gpio_data_addr = 8'h00;
+  localparam [7:0] gpio_dir_addr = 8'h04;
+  localparam max_test_count = 1000;
 
-program automatic ahb_gpio_tb
-	(ahb_gpio_if.TB gpioif);
+  logic parity_sel = '0;
+  integer test_count;
 
-  	localparam [7:0] gpio_data_addr = 8'h00;
-  	localparam [7:0] gpio_dir_addr = 8'h04;
-	localparam max_test_count = 1000;
-	integer test_count;
+  ahb_gpio_if gpioif();
+  AHBGPIO gpio(
+      .HCLK         (gpioif.HCLK),
+      .HRESETn      (gpioif.HRESETn),
+      .HADDR        (gpioif.HADDR),
+      .HTRANS       (gpioif.HTRANS),
+      .HWDATA       (gpioif.HWDATA),
+      .HWRITE       (gpioif.HWRITE),
+      .HSEL         (gpioif.HSEL),
+      .HREADY       (gpioif.HREADY),
+      .GPIOIN       (gpioif.GPIOIN),
+      .PARITYSEL    (parity_sel),
+      .INJECT_FAULT ('0),
+      .HREADYOUT     (gpioif.HREADYOUT),
+      .HRDATA       (gpioif.HRDATA),
+      .GPIOOUT      (gpioif.GPIOOUT),
+      .PARITYERR    ()
+  );
 
-	class gpio_stimulus;
-		typedef enum bit[1:0] {
-			GPIO_WRITE = 2'b00,
-			GPIO_READ  = 2'b01,
-			GPIO_DIR   = 2'b10,
-			RANDOM     = 2'b11
-		} stimulus_op;
-		rand stimulus_op gpio_op;
+  class gpio_stimulus;
+    rand logic        HSEL;
+    rand logic        HWRITE;
+    rand logic        HREADY;
+    rand logic [ 1:0] HTRANS;
+    rand logic [31:0] HWDATA;
+    rand logic [31:0] HADDR;
+    rand logic [16:0] GPIOIN;
 
-		rand logic 			HSEL;
-		rand logic 			HWRITE;
-		rand logic 			HREADY;
-		rand logic [1:0]	HTRANS;
+    logic [31:0]      prev_haddr = '0;
 
-		rand logic [31:0] 	HWDATA;
-		rand logic [31:0] 	HADDR;
 
-		rand logic [15:0] 	GPIOIN;
+    constraint c_hsel
+    { HSEL dist { 1 :=99, 0:=1 }; }
+    constraint c_hready
+    { HREADY dist { 1 :=99, 0:=1 }; }
+    constraint c_htrans
+    { HTRANS dist { 2'b10 :=90, HTRANS :=10};}
+    constraint c_haddr
+    { HSEL -> HADDR dist {gpio_data_addr:=40, gpio_dir_addr:=40, HADDR:=20};}
+    constraint c_gpio_dir_write
+    {
+      (prev_haddr[7:0]==gpio_dir_addr) -> (HWDATA==32'h0000 || HWDATA ==32'h0001);
+    }
+    constraint c_gpioin_parity
+    { GPIOIN[16] == ~^{GPIOIN[15:0],parity_sel};}
 
-		constraint c_haddr {((gpio_op == GPIO_WRITE) && (HADDR == gpio_data_addr)) ||
-							((gpio_op == GPIO_DIR) && (HADDR == gpio_dir_addr)) ||
-							(gpio_op == GPIO_READ) ||
-							(gpio_op == RANDOM);}
+    function void post_randomize;
+      prev_haddr = HADDR;
+    endfunction
+  endclass
 
-		constraint c_write {((gpio_op == GPIO_WRITE)|| (gpio_op == GPIO_DIR)) -> (HSEL && HWRITE && HREADY && (HTRANS == 2'b10));}
+  gpio_stimulus stimulus_vals;
 
-		constraint c_read  {(gpio_op == GPIO_READ)  -> (HSEL && !HWRITE && HREADY);}
-	endclass
+  covergroup cover_ahb_transaction_vals;
+    cp_hsel: coverpoint gpioif.HSEL{
+      bins hi = {1};
+      bins lo = {0};
+    }
+    cp_hready: coverpoint gpioif.HREADY{
+      bins hi = {1};
+      bins lo = {0};
+    }
+    cp_hwrite: coverpoint gpioif.HWRITE{
+      bins write = {1};
+      bins read  = {0};
+    }
+    cp_haddr:  coverpoint gpioif.HADDR {
+      bins data_addr 		= {gpio_data_addr};
+      bins dir_addr  		= {gpio_dir_addr};
+      bins invalid_addr 	= default;
+    }
+    cp_ahb_transaction: cross cp_hsel, cp_hready, cp_hwrite, cp_haddr {
+      bins ahb_write = cp_ahb_transaction with (cp_hsel==1 && cp_hready==1 && cp_hwrite==1 && cp_haddr==gpio_data_addr);
+      bins ahb_read  = cp_ahb_transaction with (cp_hsel==1 && cp_hready==1 && cp_hwrite==0);
+      bins ahb_dir   = cp_ahb_transaction with (cp_hsel==1 && cp_hready==1 && cp_hwrite==1 && cp_haddr==gpio_dir_addr);
+      ignore_bins ignore_invalid = cp_ahb_transaction with (cp_hsel!=1);
+    }
 
-	gpio_stimulus stimulus_vals;
+  endgroup
 
-	covergroup cover_addr_values;
-		coverpoint gpioif.HADDR {
-			bins data_addr 		= {gpio_data_addr};
-			bins dir_addr  		= {gpio_dir_addr};
-			bins invalid_addr 	= default;
-		}
-	endgroup
+  covergroup cover_ahb_write_values;
+    coverpoint gpioif.HWDATA;
+  endgroup
 
-	covergroup cover_wr_vals;
-		coverpoint {HSEL,HWRITE,HREADY} {
-			bins write 			= {{1,1,1}};
-			bins read 			= {{1,0,1}};
-			bins invalid 		= default;
-		}
-	endgroup
+  covergroup cover_ahb_read_values;
+    coverpoint gpioif.HRDATA;
+  endgroup
 
-	covergroup cover_ahb_write_values;
-		coverpoint gpioif.HWDATA {
-			bins zero = {0};
-			bins lo   = {[1:7]};
-			bins med  = {[8:23]};
-			bins hi   = {[24:30]};
-			bins max  = {32'hFFFF};
-		}
-	endgroup
+  covergroup cover_gpio_in_values;
+    coverpoint gpioif.GPIOIN;
+  endgroup
 
-	covergroup cover_ahb_read_values;
-		coverpoint gpioif.HRDATA {
-			bins zero = {0};
-			bins lo   = {[1:7]};
-			bins med  = {[8:23]};
-			bins hi   = {[24:30]};
-			bins max  = {32'hFFFF};
-		}
-	endgroup
+  covergroup cover_gpio_out_values;
+    coverpoint gpioif.GPIOOUT;
+  endgroup
 
-	covergroup cover_gpio_in_values;
-		coverpoint gpioif.GPIOIN {
-			bins zero = {0};
-			bins lo   = {[1:4]};
-			bins med  = {[5:9]};
-			bins high = {[10:14]};
-			bins max  = {16'hFF};
-		}
-	endgroup
+  task deassert_reset();
+  begin
+    gpioif.HRESETn = 0;
+    @(posedge gpioif.HCLK);
+    @(posedge gpioif.HCLK);
+    gpioif.HRESETn = 1;
+  end
+  endtask
 
-	covergroup cover_gpio_out_values;
-		coverpoint gpioif.GPIOOUT {
-			bins zero = {0};
-			bins lo   = {[1:4]};
-			bins med  = {[5:9]};
-			bins high = {[10:14]};
-			bins max  = {16'hFF};
-		}
-	endgroup
-	task deassert_reset();
-	begin
-		gpioif.HRESETn = 0;
-		@(posedge gpioif.HCLK);
-		@(posedge gpioif.HCLK);
-		gpioif.HRESETn = 1;
-		@(posedge gpioif.HCLK);
-	end
-	endtask
+  initial begin
+    cover_ahb_write_values covahbwrite;
+    cover_ahb_read_values covahbread;
+    cover_gpio_in_values covgpioin;
+    cover_gpio_out_values covgpioout;
+    cover_ahb_transaction_vals covahbtransactionvals;
+    covahbwrite   	        = new();
+    covahbread     	        = new();
+    covgpioin    	          = new();
+    covgpioout     	        = new();
+    covahbtransactionvals   = new();
+    stimulus_vals 	        = new();
+    deassert_reset();
 
-	initial begin
-		cover_addr_values covaddr;
-		cover_ahb_write_values covahbwrite;
-		cover_ahb_read_values covahbread;
-		cover_gpio_in_values covgpioin;
-		cover_gpio_out_values covgpioout;
-		covaddr 		= new();
-		covahbwrite 	= new();
-		covahbread 		= new();
-		covgpioin		= new();
-		covgpioout 		= new();
+    for(test_count = 0; test_count < max_test_count;test_count++)
+    begin
+      assert (stimulus_vals.randomize) else $fatal;
+      gpioif.HSEL  = stimulus_vals.HSEL;
+      gpioif.HWRITE  = stimulus_vals.HWRITE;
+      gpioif.HREADY   = stimulus_vals.HREADY;
+      gpioif.HTRANS  = stimulus_vals.HTRANS;
+      gpioif.HWDATA  = stimulus_vals.HWDATA;
+      gpioif.HADDR  = stimulus_vals.HADDR;
+      gpioif.GPIOIN  = stimulus_vals.GPIOIN;
 
-		deassert_reset();
+      covahbwrite.sample();
+      covgpioin.sample();
+      covahbread.sample();
+      covgpioout.sample();
 
-		for(test_count = 0; test_count < max_test_count;test_count++)
-		begin
-			@(posedge gpioif.HCLK);
-			assert (stimulus_vals.randomize) else $fatal;
-			gpioif.HSEL	= stimulus_vals.HSEL;
-			gpioif.HWRITE	= stimulus_vals.HWRITE;
-			gpioif.HREADY 	= stimulus_vals.HREADY;
-			gpioif.HTRANS	= stimulus_vals.HTRANS;
-			gpioif.HWDATA	= stimulus_vals.HWDATA;
-			gpioif.HADDR	= stimulus_vals.HADDR;
-			gpioif.GPIOIN	= stimulus_vals.GPIOIN;
+      covahbtransactionvals.sample();
 
-				covaddr.sample();
-				covahbwrite.sample();
-				covgpioin.sample();
-				covahbread.sample();
-				covgpioout.sample();
-		end
-		@(posedge gpioif.HCLK);
-		$finish;
-	end
-endprogram
+    @(posedge gpioif.HCLK);
+    end
+    @(posedge gpioif.HCLK);
+    $finish;
+  end
+  initial begin
+    gpioif.HCLK = 0;
+    forever #1 gpioif.HCLK = ! gpioif.HCLK;
+  end
+endmodule
