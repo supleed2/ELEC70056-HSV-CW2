@@ -18,6 +18,6 @@ module VGACOMPARATOR
     && HSYNC1 == HSYNC2
     && VSYNC1 == VSYNC2
     && RGB1 == RGB2
-    )
+    );
 
 endmodule
