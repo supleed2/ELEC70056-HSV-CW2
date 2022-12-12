@@ -114,46 +114,46 @@ module AHBGPIO
 
   //check behaviour
 
-  assert_parity: assert property
-  ( @(posedge HCLK) disable iff (!HRESETn)
-    !PARITYERR
-  );
+  // assert_parity: assert property
+  // ( @(posedge HCLK) disable iff (!HRESETn)
+  //   !PARITYERR
+  // );
 
-  assert_gpio_write: assert property
-  ( @(posedge HCLK) disable iff (!HRESETn)
-    ((HADDR[7:0] == gpio_data_addr)
-      && HSEL
-      && HWRITE
-      && HTRANS[1]
-      && HREADY) |-> ##1
-      (gpio_dir == 16'h0001) |-> ##1
-    (GPIOOUT[15:0] == $past(HWDATA[15:0], 1))
-  );
-  assert_gpio_read: assert property
-  ( @(posedge HCLK) disable iff (!HRESETn)
-    ((gpio_dir == 16'h0000)
-      && (HADDR[7:0] == gpio_data_addr)
-      // && HSEL // HSEL not used in Read always_ff
-      && !HWRITE
-      && HTRANS[1]
-      && HREADY) |-> ##1
-     ((HRDATA[15:0]==$past(GPIOIN[15:0],1)) && HREADYOUT)
-  );
+  // assert_gpio_write: assert property
+  // ( @(posedge HCLK) disable iff (!HRESETn)
+  //   ((HADDR[7:0] == gpio_data_addr)
+  //     && HSEL
+  //     && HWRITE
+  //     && HTRANS[1]
+  //     && HREADY) |-> ##1
+  //     (gpio_dir == 16'h0001) |-> ##1
+  //   (GPIOOUT[15:0] == $past(HWDATA[15:0], 1))
+  // );
+  // assert_gpio_read: assert property
+  // ( @(posedge HCLK) disable iff (!HRESETn)
+  //   ((gpio_dir == 16'h0000)
+  //     && (HADDR[7:0] == gpio_data_addr)
+  //     // && HSEL // HSEL not used in Read always_ff
+  //     && !HWRITE
+  //     && HTRANS[1]
+  //     && HREADY) |-> ##1
+  //    ((HRDATA[15:0]==$past(GPIOIN[15:0],1)) && HREADYOUT)
+  // );
 
-  assert_gpio_dir: assert property
-  ( @(posedge HCLK) disable iff (!HRESETn)
-    ((HADDR[7:0] == gpio_dir_addr)
-      && HSEL
-      && HWRITE
-      && HTRANS[1]
-      && HREADY) |-> ##1
-    ((HWDATA[7:0] == 8'h00 || HWDATA[7:0] == 8'h01)) ##1 (gpio_dir == $past(HWDATA[15:0], 1))
-  );
+  // assert_gpio_dir: assert property
+  // ( @(posedge HCLK) disable iff (!HRESETn)
+  //   ((HADDR[7:0] == gpio_dir_addr)
+  //     && HSEL
+  //     && HWRITE
+  //     && HTRANS[1]
+  //     && HREADY) |-> ##1
+  //   ((HWDATA[7:0] == 8'h00 || HWDATA[7:0] == 8'h01)) ##1 (gpio_dir == $past(HWDATA[15:0], 1))
+  // );
 
-  assume_initial_valid: assume property
-  ( @(posedge HCLK)
-    gpio_dir == 16'h0000
-    || gpio_dir == 16'h0001
-  );
+  // assume_initial_valid: assume property
+  // ( @(posedge HCLK)
+  //   gpio_dir == 16'h0000
+  //   || gpio_dir == 16'h0001
+  // );
 
 endmodule

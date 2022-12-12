@@ -62,32 +62,33 @@ module ahb_vgasys_checker(
     begin
       pixel_x           <= 0;
       pixel_y           <= 0;
-      console_text_reg  <= "";
-      counter           <= 0;
+      if(!HRESETn)
+        console_text_reg  <= "";
+        counter           <= 0;
       countup           <= 0;
     end
     else
     begin
       countup <= countup + 1;
-    if($past(HSEL && HREADY && HWRITE && (HADDR[23:0]== 12'h000000000000),1) && HREADYOUT)
-    begin
-      console_text_reg          <= {console_text_reg,font_map[HWDATA]};
-      character_buffer[counter] <= HWDATA[7:0];
-      counter                   <= counter+1;
-    end
-    if($fell(vgaif.HSYNC))
-    begin
-      pixel_x           <= 0;
-      pixel_y           <= pixel_y + 1;
-    end
-    else
-    begin
-      if(vgaif.HSYNC)
-        if(countup)
-        begin
-          pixel_x         <= pixel_x + 1;
-        end
-    end
+      if($past(HSEL && HREADY && HWRITE && (HADDR[23:0]== 12'h000000000000),1) && HREADYOUT)
+      begin
+        console_text_reg          <= {console_text_reg,font_map[HWDATA]};
+        character_buffer[counter] <= HWDATA[7:0];
+        counter                   <= counter+1;
+      end
+      if($fell(vgaif.HSYNC))
+      begin
+        pixel_x           <= 0;
+        pixel_y           <= pixel_y + 1;
+      end
+      else
+      begin
+        if(vgaif.HSYNC)
+          if(countup)
+          begin
+            pixel_x         <= pixel_x + 1;
+          end
+      end
     end
   end
 

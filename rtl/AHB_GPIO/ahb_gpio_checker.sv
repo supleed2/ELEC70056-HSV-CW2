@@ -1,15 +1,13 @@
 module ahb_gpio_checker
-( input  wire        HCLK
-, input  wire        HRESETn
-, input  wire [31:0] HADDR
-, input  wire [ 1:0] HTRANS
-, input  wire [31:0] HWDATA
-, input  wire        HWRITE
-, input  wire        HSEL
-, input  wire        HREADY
-, input  wire [16:0] GPIOIN
-, input  wire        PARITYSEL
-, input  wire        INJECT_FAULT
+( input wire        HCLK
+, input wire        HRESETn
+, input wire [31:0] HADDR
+, input wire [ 1:0] HTRANS
+, input wire [31:0] HWDATA
+, input wire        HWRITE
+, input wire        HSEL
+, input wire        HREADY
+, input wire [16:0] GPIOIN
 , input wire        HREADYOUT
 , input wire [31:0] HRDATA
 , input wire [16:0] GPIOOUT
@@ -27,15 +25,15 @@ module ahb_gpio_checker
     @(posedge HCLK) disable iff (!HRESETn)
     (HADDR[7:0] == gpio_data_addr) && gpio_cmd
     ##1
-    (gpio_dir=='1)
+    (gpio_dir=='1) |->
     ##1
-    (GPIOOUT[15:0] == $past(HWDATA,1));
+    (GPIOOUT[15:0] == $past(HWDATA[15:0],1));
   endproperty
 
   property gpio_read;
     @(posedge HCLK) disable iff (!HRESETn)
     (HADDR[7:0] == gpio_data_addr) && gpio_cmd
-    && (gpio_dir=='0)
+    && (gpio_dir=='0) |->
     ##1
     ((HRDATA[15:0]==$past(GPIOIN[15:0],1)) && HREADYOUT);
   endproperty

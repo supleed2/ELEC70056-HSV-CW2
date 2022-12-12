@@ -3,7 +3,7 @@
 //                                                                              //
 //Copyright (c) 2012, ARM All rights reserved.                                  //
 //                                                                              //
-//THIS END USER LICENCE AGREEMENT (�LICENCE�) IS A LEGAL AGREEMENT BETWEEN      //
+//THIS END USER LICENCE AGREEMENT (“LICENCE”) IS A LEGAL AGREEMENT BETWEEN      //
 //YOU AND ARM LIMITED ("ARM") FOR THE USE OF THE SOFTWARE EXAMPLE ACCOMPANYING  //
 //THIS LICENCE. ARM IS ONLY WILLING TO LICENSE THE SOFTWARE EXAMPLE TO YOU ON   //
 //CONDITION THAT YOU ACCEPT ALL OF THE TERMS IN THIS LICENCE. BY INSTALLING OR  //
@@ -34,20 +34,23 @@
 // OF DOUBT, NO PATENT LICENSES ARE BEING LICENSED UNDER THIS LICENSE AGREEMENT.//
 //////////////////////////////////////////////////////////////////////////////////
 
-module AHBVGA
-( input wire HCLK
-, input wire HRESETn
-, input wire [31:0] HADDR
-, input wire [31:0] HWDATA
-, input wire HREADY
-, input wire HWRITE
-, input wire [1:0] HTRANS
-, input wire HSEL
-, output wire [31:0] HRDATA
-, output wire HREADYOUT
-, output wire HSYNC
-, output wire VSYNC
-, output wire [7:0] RGB
+
+module AHBVGA(
+  input wire HCLK,
+  input wire HRESETn,
+  input wire [31:0] HADDR,
+  input wire [31:0] HWDATA,
+  input wire HREADY,
+  input wire HWRITE,
+  input wire [1:0] HTRANS,
+  input wire HSEL,
+
+  output wire [31:0] HRDATA,
+  output wire HREADYOUT,
+
+  output wire HSYNC,
+  output wire VSYNC,
+  output wire [7:0] RGB
 );
   //Register locations
   localparam IMAGEADDR = 4'hA;
@@ -76,11 +79,13 @@ module AHBVGA
   wire sel_image;
   reg [7:0] cin;
 
-  always_ff @(posedge HCLK)
-    if(HREADY) begin
-      last_HADDR  <= HADDR;
+
+  always @(posedge HCLK)
+  if(HREADY)
+    begin
+      last_HADDR <= HADDR;
       last_HWRITE <= HWRITE;
-      last_HSEL   <= HSEL;
+      last_HSEL <= HSEL;
       last_HTRANS <= HTRANS;
     end
 
@@ -88,71 +93,87 @@ module AHBVGA
   assign HREADYOUT = ~scroll;
 
   //VGA interface: control the synchronization and color signals for a particular resolution
-  VGAInterface uVGAInterface
-  ( .CLK       (HCLK)
-  , .COLOUR_IN (cin)
-  , .cout      (RGB)
-  , .hs        (HSYNC)
-  , .vs        (VSYNC)
-  , .addrh     (pixel_x)
-  , .addrv     (pixel_y)
-  );
+  VGAInterface uVGAInterface (
+    .CLK(HCLK),
+    .resetn(HRESETn),
+    .COLOUR_IN(cin),
+    .cout(RGB),
+    .hs(HSYNC),
+    .vs(VSYNC),
+    .addrh(pixel_x),
+    .addrv(pixel_y)
+    );
 
   //VGA console module: output the pixels in the text region
-  vga_console uvga_console
-  ( .clk       (HCLK)
-  , .resetn    (HRESETn)
-  , .pixel_x   (pixel_x)
-  , .pixel_y   (pixel_y)
-  , .text_rgb  (console_rgb)
-  , .font_we   (console_write)
-  , .font_data (console_wdata)
-  , .scroll    (scroll)
-  );
+  vga_console uvga_console(
+    .clk(HCLK),
+    .resetn(HRESETn),
+    .pixel_x(pixel_x),
+    .pixel_y(pixel_y),
+    .text_rgb(console_rgb),
+    .font_we(console_write),
+    .font_data(console_wdata),
+    .scroll(scroll)
+    );
 
   //VGA image buffer: output the pixels in the image region
-  vga_image uvga_image
-  ( .clk        (HCLK)
-  , .resetn     (HRESETn)
-  , .address    (last_HADDR[15:2])
-  , .pixel_x    (pixel_x)
-  , .pixel_y    (pixel_y)
-  , .image_we   (image_write)
-  , .image_data (image_wdata)
-  , .image_rgb  (image_rgb)
-  );
+  vga_image uvga_image(
+    .clk(HCLK),
+    .resetn(HRESETn),
+    .address(last_HADDR[15:2]),
+    .pixel_x(pixel_x),
+    .pixel_y(pixel_y),
+    .image_we(image_write),
+    .image_data(image_wdata),
+    .image_rgb(image_rgb)
+    );
 
-  assign sel_console = (last_HADDR[23:0] == 12'h000000000000);
-  assign sel_image   = (last_HADDR[23:0] != 12'h000000000000);
+  assign sel_console = (last_HADDR[23:0]== 12'h000000000000);
+  assign sel_image = (last_HADDR[23:0] != 12'h000000000000);
 
   //Set console write and write data
-  always_ff @(posedge HCLK, negedge HRESETn)
-    if(!HRESETn) begin
-      console_write <= 0;
-      console_wdata <= 0;
-    end else if (last_HWRITE & last_HSEL & last_HTRANS[1] & HREADYOUT & sel_console) begin
-      console_write <= 1'b1;
-      console_wdata <= HWDATA[7:0];
-    end else begin
-      console_write <= 1'b0;
-      console_wdata <= 0;
-    end
+  always @(posedge HCLK, negedge HRESETn)
+  begin
+    if(!HRESETn)
+      begin
+        console_write <= 0;
+        console_wdata <= 0;
+      end
+    else if(last_HWRITE & last_HSEL & last_HTRANS[1] & HREADYOUT & sel_console)
+      begin
+        console_write <= 1'b1;
+        console_wdata <= HWDATA[7:0];
+      end
+    else
+      begin
+        console_write <= 1'b0;
+        console_wdata <= 0;
+      end
+  end
 
   //Set image write and image write data
-  always_ff @(posedge HCLK, negedge HRESETn)
-    if(!HRESETn) begin
-      image_write <= 0;
-      image_wdata <= 0;
-    end else if(last_HWRITE & last_HSEL & last_HTRANS[1] & HREADYOUT & sel_image) begin
-      image_write <= 1'b1;
-      image_wdata <= HWDATA[7:0];
-    end else begin
-      image_write <= 1'b0;
-      image_wdata <= 0;
-    end
+  always @(posedge HCLK, negedge HRESETn)
+  begin
+    if(!HRESETn)
+      begin
+        image_write <= 0;
+        image_wdata <= 0;
+      end
+    else if(last_HWRITE & last_HSEL & last_HTRANS[1] & HREADYOUT & sel_image)
+      begin
+        image_write <= 1'b1;
+        image_wdata <= HWDATA[7:0];
+      end
+    else
+      begin
+        image_write <= 1'b0;
+        image_wdata <= 0;
+      end
+  end
 
   //Select the rgb color for a particular region
-  always_comb
+  always @*
+  begin
     if(!HRESETn)
       cin <= 8'h00;
     else
@@ -160,6 +181,7 @@ module AHBVGA
         cin <= console_rgb ;
       else
         cin <= image_rgb;
+  end
 
 endmodule
 

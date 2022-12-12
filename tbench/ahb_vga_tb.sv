@@ -76,7 +76,7 @@ module ahb_vga_tb;
   );
 
   logic display_enable;
-
+  integer reset_time;
   task deassert_reset();
   begin
     vgaif.HRESETn = 0;
@@ -118,7 +118,7 @@ module ahb_vga_tb;
   endtask
 
   class vga_stimulus;
-    rand logic [31:0] HWDATA;
+    randc logic [31:0] HWDATA;
 
     constraint c_hwdata
     {0 <= HWDATA; HWDATA <= 8'h7f;}
@@ -128,32 +128,40 @@ module ahb_vga_tb;
 
   covergroup cover_vga_chars;
     cp_hwdata: coverpoint vgaif.HWDATA{
-      bins invalid = {[128:255]};
-      option.auto_bin_max = 128;
+      bins lo_1   = {[0:15]};
+      bins lo_2   = {[16:31]};
+      bins mid_1  = {[32:47]};
+      bins mid_2  = {[48:63]};
+      bins mid_3  = {[64:79]};
+      bins mid_4  = {[80:95]};
+      bins hi_1   = {[96:111]};
+      bins hi_2   = {[112:127]};
     }
   endgroup
 
 
   integer char_index;
   string test_value = "";
-
   initial begin
     cover_vga_chars covvgachars;
     covvgachars = new();
     stimulus_vals = new();
-    deassert_reset();
     display_enable = 0;
+    deassert_reset();
+    display_enable = 1;
+    test_value = "";
     @(posedge vgaif.VSYNC);
     display_enable = 1;
     $display(test_value);
-    for(char_index = 0; char_index < 16; char_index++)
+    for(char_index = 0; char_index < 30; char_index++)
     begin
 
       assert (stimulus_vals.randomize) else $fatal;
       setChar(stimulus_vals.HWDATA);
+      covvgachars.sample();
       test_value = {test_value, font_map[stimulus_vals.HWDATA]};
     end
-    setChar(8'h08);
+    // setChar(8'h08);
     // setChar(8'h54);
     // setChar(8'h45);
     // setChar(8'h53);

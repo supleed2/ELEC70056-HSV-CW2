@@ -39,6 +39,7 @@ module ahb_gpio_tb;
   localparam max_test_count = 1000;
 
   logic parity_sel = '0;
+  logic parity_err;
   integer test_count;
 
   ahb_gpio_if gpioif();
@@ -54,10 +55,26 @@ module ahb_gpio_tb;
       .GPIOIN       (gpioif.GPIOIN),
       .PARITYSEL    (parity_sel),
       .INJECT_FAULT ('0),
-      .HREADYOUT     (gpioif.HREADYOUT),
+      .HREADYOUT    (gpioif.HREADYOUT),
       .HRDATA       (gpioif.HRDATA),
       .GPIOOUT      (gpioif.GPIOOUT),
-      .PARITYERR    ()
+      .PARITYERR    (parity_err)
+  );
+
+  ahb_gpio_checker gpio_checker(
+      .HCLK         (gpioif.HCLK),
+      .HRESETn      (gpioif.HRESETn),
+      .HADDR        (gpioif.HADDR),
+      .HTRANS       (gpioif.HTRANS),
+      .HWDATA       (gpioif.HWDATA),
+      .HWRITE       (gpioif.HWRITE),
+      .HSEL         (gpioif.HSEL),
+      .HREADY       (gpioif.HREADY),
+      .GPIOIN       (gpioif.GPIOIN),
+      .HREADYOUT    (gpioif.HREADYOUT),
+      .HRDATA       (gpioif.HRDATA),
+      .GPIOOUT      (gpioif.GPIOOUT),
+      .PARITYERR    (parity_err)
   );
 
   class gpio_stimulus;
@@ -121,20 +138,20 @@ module ahb_gpio_tb;
 
   endgroup
 
-  covergroup cover_ahb_write_values;
+  covergroup cover_hwdata_values;
     coverpoint gpioif.HWDATA;
   endgroup
 
-  covergroup cover_ahb_read_values;
-    coverpoint gpioif.HRDATA;
+  covergroup cover_hrdata_values;
+    coverpoint gpioif.HRDATA[15:0];
   endgroup
 
   covergroup cover_gpio_in_values;
-    coverpoint gpioif.GPIOIN;
+    coverpoint gpioif.GPIOIN[15:0];
   endgroup
 
   covergroup cover_gpio_out_values;
-    coverpoint gpioif.GPIOOUT;
+    coverpoint gpioif.GPIOOUT[15:0];
   endgroup
 
   task deassert_reset();
@@ -147,13 +164,13 @@ module ahb_gpio_tb;
   endtask
 
   initial begin
-    cover_ahb_write_values covahbwrite;
-    cover_ahb_read_values covahbread;
+    cover_hwdata_values covhwdata;
+    cover_hrdata_values covhrdata;
     cover_gpio_in_values covgpioin;
     cover_gpio_out_values covgpioout;
     cover_ahb_transaction_vals covahbtransactionvals;
-    covahbwrite   	        = new();
-    covahbread     	        = new();
+    covhwdata   	          = new();
+    covhrdata     	        = new();
     covgpioin    	          = new();
     covgpioout     	        = new();
     covahbtransactionvals   = new();
@@ -171,9 +188,9 @@ module ahb_gpio_tb;
       gpioif.HADDR  = stimulus_vals.HADDR;
       gpioif.GPIOIN  = stimulus_vals.GPIOIN;
 
-      covahbwrite.sample();
+      covhwdata.sample();
       covgpioin.sample();
-      covahbread.sample();
+      covhrdata.sample();
       covgpioout.sample();
 
       covahbtransactionvals.sample();
