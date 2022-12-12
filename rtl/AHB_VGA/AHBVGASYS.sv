@@ -95,7 +95,6 @@ module AHBVGA(
   //VGA interface: control the synchronization and color signals for a particular resolution
   VGAInterface uVGAInterface (
     .CLK(HCLK),
-    .resetn(HRESETn),
     .COLOUR_IN(cin),
     .cout(RGB),
     .hs(HSYNC),
@@ -132,48 +131,33 @@ module AHBVGA(
   assign sel_image = (last_HADDR[23:0] != 12'h000000000000);
 
   //Set console write and write data
-  always @(posedge HCLK, negedge HRESETn)
-  begin
-    if(!HRESETn)
-      begin
-        console_write <= 0;
-        console_wdata <= 0;
-      end
-    else if(last_HWRITE & last_HSEL & last_HTRANS[1] & HREADYOUT & sel_console)
-      begin
-        console_write <= 1'b1;
-        console_wdata <= HWDATA[7:0];
-      end
-    else
-      begin
-        console_write <= 1'b0;
-        console_wdata <= 0;
-      end
-  end
+  always_ff @(posedge HCLK, negedge HRESETn)
+    if(!HRESETn) begin
+      console_write <= 0;
+      console_wdata <= 0;
+    end else if (last_HWRITE & last_HSEL & last_HTRANS[1] & HREADYOUT & sel_console) begin
+      console_write <= 1'b1;
+      console_wdata <= HWDATA[7:0];
+    end else begin
+      console_write <= 1'b0;
+      console_wdata <= 0;
+    end
 
   //Set image write and image write data
-  always @(posedge HCLK, negedge HRESETn)
-  begin
-    if(!HRESETn)
-      begin
-        image_write <= 0;
-        image_wdata <= 0;
-      end
-    else if(last_HWRITE & last_HSEL & last_HTRANS[1] & HREADYOUT & sel_image)
-      begin
-        image_write <= 1'b1;
-        image_wdata <= HWDATA[7:0];
-      end
-    else
-      begin
-        image_write <= 1'b0;
-        image_wdata <= 0;
-      end
-  end
+  always_ff @(posedge HCLK, negedge HRESETn)
+    if(!HRESETn) begin
+      image_write <= 0;
+      image_wdata <= 0;
+    end else if(last_HWRITE & last_HSEL & last_HTRANS[1] & HREADYOUT & sel_image) begin
+      image_write <= 1'b1;
+      image_wdata <= HWDATA[7:0];
+    end else begin
+      image_write <= 1'b0;
+      image_wdata <= 0;
+    end
 
   //Select the rgb color for a particular region
-  always @*
-  begin
+  always_comb
     if(!HRESETn)
       cin <= 8'h00;
     else
@@ -181,7 +165,6 @@ module AHBVGA(
         cin <= console_rgb ;
       else
         cin <= image_rgb;
-  end
 
 endmodule
 
