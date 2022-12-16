@@ -60,12 +60,12 @@ module ahb_vgasys_checker(
   begin
     if(!HRESETn || !VSYNC)
     begin
-      pixel_x           <= 0;
-      pixel_y           <= 0;
+      pixel_x             <= 0;
+      pixel_y             <= 0;
       if(!HRESETn)
         console_text_reg  <= "";
         counter           <= 0;
-      countup           <= 0;
+      countup             <= 0;
     end
     else
     begin

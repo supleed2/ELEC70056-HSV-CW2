@@ -12,6 +12,7 @@ module ahb_gpio_checker
 , input wire [31:0] HRDATA
 , input wire [16:0] GPIOOUT
 , input wire        PARITYERR
+, input wire        PARITYSEL
 );
 
   logic             gpio_cmd =  HSEL && HREADY && HTRANS[1];
@@ -27,7 +28,7 @@ module ahb_gpio_checker
     ##1
     (gpio_dir=='1) |->
     ##1
-    (GPIOOUT[15:0] == $past(HWDATA[15:0],1));
+    (GPIOOUT[15:0] == $past(HWDATA[15:0],1)) && (^GPIOOUT == $past(PARITYSEL, 1));
   endproperty
 
   property gpio_read;
@@ -35,7 +36,7 @@ module ahb_gpio_checker
     (HADDR[7:0] == gpio_data_addr) && gpio_cmd
     && (gpio_dir=='0) |->
     ##1
-    ((HRDATA[15:0]==$past(GPIOIN[15:0],1)) && HREADYOUT);
+    ((HRDATA[15:0]==$past(GPIOIN[15:0],1)) && HREADYOUT && !PARITYERR);
   endproperty
 
   always_ff @(posedge HCLK)
@@ -54,10 +55,6 @@ module ahb_gpio_checker
   end
 
 // check behaviour
-  assert_parity: assert property
-  ( @(posedge HCLK) disable iff (!HRESETn)
-    !PARITYERR
-  );
 
   assert_gpio_write: assert property (gpio_write);
   assert_gpio_read:  assert property (gpio_read);

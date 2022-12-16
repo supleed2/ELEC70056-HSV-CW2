@@ -1,0 +1,1201 @@
+Coverage Report by file with details
+
+=================================================================================
+=== File: rtl/AHB_GPIO/AHBGPIO.sv
+=================================================================================
+Statement Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Stmts                           19        19         0    100.00
+
+================================Statement Details================================
+
+Statement Coverage for file rtl/AHB_GPIO/AHBGPIO.sv --
+
+    1                                                //////////////////////////////////////////////////////////////////////////////////
+    2                                                //END USER LICENCE AGREEMENT                                                    //
+    3                                                //                                                                              //
+    4                                                //Copyright (c) 2012, ARM All rights reserved.                                  //
+    5                                                //                                                                              //
+    6                                                //THIS END USER LICENCE AGREEMENT (�LICENCE�) IS A LEGAL AGREEMENT BETWEEN      //
+    7                                                //YOU AND ARM LIMITED ("ARM") FOR THE USE OF THE SOFTWARE EXAMPLE ACCOMPANYING  //
+    8                                                //THIS LICENCE. ARM IS ONLY WILLING TO LICENSE THE SOFTWARE EXAMPLE TO YOU ON   //
+    9                                                //CONDITION THAT YOU ACCEPT ALL OF THE TERMS IN THIS LICENCE. BY INSTALLING OR  //
+    10                                               //OTHERWISE USING OR COPYING THE SOFTWARE EXAMPLE YOU INDICATE THAT YOU AGREE   //
+    11                                               //TO BE BOUND BY ALL OF THE TERMS OF THIS LICENCE. IF YOU DO NOT AGREE TO THE   //
+    12                                               //TERMS OF THIS LICENCE, ARM IS UNWILLING TO LICENSE THE SOFTWARE EXAMPLE TO    //
+    13                                               //YOU AND YOU MAY NOT INSTALL, USE OR COPY THE SOFTWARE EXAMPLE.                //
+    14                                               //                                                                              //
+    15                                               //ARM hereby grants to you, subject to the terms and conditions of this Licence,//
+    16                                               //a non-exclusive, worldwide, non-transferable, copyright licence only to       //
+    17                                               //redistribute and use in source and binary forms, with or without modification,//
+    18                                               //for academic purposes provided the following conditions are met:              //
+    19                                               //a) Redistributions of source code must retain the above copyright notice, this//
+    20                                               //list of conditions and the following disclaimer.                              //
+    21                                               //b) Redistributions in binary form must reproduce the above copyright notice,  //
+    22                                               //this list of conditions and the following disclaimer in the documentation     //
+    23                                               //and/or other materials provided with the distribution.                        //
+    24                                               //                                                                              //
+    25                                               //THIS SOFTWARE EXAMPLE IS PROVIDED BY THE COPYRIGHT HOLDER "AS IS" AND ARM     //
+    26                                               //EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING     //
+    27                                               //WITHOUT LIMITATION WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR //
+    28                                               //PURPOSE, WITH RESPECT TO THIS SOFTWARE EXAMPLE. IN NO EVENT SHALL ARM BE LIABLE/
+    29                                               //FOR ANY DIRECT, INDIRECT, INCIDENTAL, PUNITIVE, OR CONSEQUENTIAL DAMAGES OF ANY/
+    30                                               //KIND WHATSOEVER WITH RESPECT TO THE SOFTWARE EXAMPLE. ARM SHALL NOT BE LIABLE //
+    31                                               //FOR ANY CLAIMS, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, //
+    32                                               //TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE    //
+    33                                               //EXAMPLE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE EXAMPLE. FOR THE AVOIDANCE/
+    34                                               // OF DOUBT, NO PATENT LICENSES ARE BEING LICENSED UNDER THIS LICENSE AGREEMENT.//
+    35                                               //////////////////////////////////////////////////////////////////////////////////
+    36                                               
+    37                                               
+    38                                               module AHBGPIO
+    39                                               ( input  wire        HCLK
+    40                                               , input  wire        HRESETn
+    41                                               , input  wire [31:0] HADDR
+    42                                               , input  wire [ 1:0] HTRANS
+    43                                               , input  wire [31:0] HWDATA
+    44                                               , input  wire        HWRITE
+    45                                               , input  wire        HSEL
+    46                                               , input  wire        HREADY
+    47                                               , input  wire [16:0] GPIOIN
+    48                                               , input  wire        PARITYSEL
+    49                                               , input  wire        INJECT_FAULT
+    50                                               	//Output
+    51                                               , output wire        HREADYOUT
+    52                                               , output wire [31:0] HRDATA
+    53                                               , output wire [16:0] GPIOOUT
+    54                                               , output wire        PARITYERR
+    55                                               );
+    56                                               
+    57                                                 localparam [7:0] gpio_data_addr = 8'h00;
+    58                                                 localparam [7:0] gpio_dir_addr = 8'h04;
+    59                                               
+    60                                                 reg [15:0] gpio_dataout;
+    61                                                 reg        gpio_parityout;
+    62                                                 reg [15:0] gpio_datain;
+    63                                                 reg        gpio_parityerr;
+    64                                                 reg [15:0] gpio_dir;
+    65                                                 reg [15:0] gpio_data_next;
+    66                                                 reg [31:0] last_HADDR;
+    67                                                 reg [ 1:0] last_HTRANS;
+    68                                                 reg        last_HWRITE;
+    69                                                 reg        last_HSEL;
+    70                                               
+    71                                                 assign HREADYOUT = 1'b1;
+    72                                               
+    73                                               // Set Registers from address phase
+    74              1                        984       always_ff @(posedge HCLK)
+    75                                                   if(HREADY) begin
+    76              1                        973           last_HADDR <= HADDR;
+    77              1                        973           last_HTRANS <= HTRANS;
+    78              1                        973           last_HWRITE <= HWRITE;
+    79              1                        973           last_HSEL <= HSEL;
+    80                                                   end
+    81                                               
+    82                                                 // Update in/out switch
+    83              1                        981       always_ff @(posedge HCLK, negedge HRESETn)
+    84                                                   if(!HRESETn)
+    85              1                          2           gpio_dir <= 16'h0000;
+    86                                                   else if ((last_HADDR[7:0] == gpio_dir_addr) & last_HSEL & last_HWRITE & last_HTRANS[1])
+    87              1                        178           gpio_dir <= HWDATA[15:0];
+    88                                               
+    89                                                 // Update output value
+    90              1                        981       always_ff @(posedge HCLK, negedge HRESETn)
+    91                                                   if(!HRESETn)
+    92              1                          2           {gpio_parityout, gpio_dataout} <= 17'd0;
+    93                                                   else if ((gpio_dir == 16'h0001) & (last_HADDR[7:0] == gpio_data_addr) & last_HSEL & last_HWRITE & last_HTRANS[1]) begin
+    94              1                         90           gpio_dataout <= HWDATA[15:0];
+    95              1                         90           gpio_parityout <= ~^{HWDATA[15:0],~PARITYSEL,INJECT_FAULT};
+    96                                                   end
+    97                                               
+    98                                                 // Update input value
+    99              1                       1002       always_ff @(posedge HCLK, negedge HRESETn)
+    100                                                  if(!HRESETn) begin
+    101             1                          2           gpio_datain <= 16'h0000;
+    102             1                          2           gpio_parityerr <= '0;
+    103                                                  end
+    104                                                  else if (gpio_dir == 16'h0000) begin
+    105             1                        499           gpio_datain <= GPIOIN[15:0];
+    106             1                        499           gpio_parityerr <= ~^{GPIOIN,~PARITYSEL,INJECT_FAULT};
+    107                                                  end
+    108                                                  else if (gpio_dir == 16'h0001)
+    109             1                        501           gpio_datain <= GPIOOUT;
+    110                                              
+    111                                                assign HRDATA[15:0] = gpio_datain;
+    112             1                         91       assign GPIOOUT = {gpio_parityout, gpio_dataout};
+    113                                                assign PARITYERR = gpio_parityerr;
+    114                                              
+    115                                                //check behaviour
+    116                                              
+    117                                                // assert_parity: assert property
+    118                                                // ( @(posedge HCLK) disable iff (!HRESETn)
+    119                                                //   !PARITYERR
+    120                                                // );
+    121                                              
+    122                                                // assert_gpio_write: assert property
+    123                                                // ( @(posedge HCLK) disable iff (!HRESETn)
+    124                                                //   ((HADDR[7:0] == gpio_data_addr)
+    125                                                //     && HSEL
+    126                                                //     && HWRITE
+    127                                                //     && HTRANS[1]
+    128                                                //     && HREADY) |-> ##1
+    129                                                //     (gpio_dir == 16'h0001) |-> ##1
+    130                                                //   (GPIOOUT[15:0] == $past(HWDATA[15:0], 1))
+    131                                                // );
+    132                                                // assert_gpio_read: assert property
+    133                                                // ( @(posedge HCLK) disable iff (!HRESETn)
+    134                                                //   ((gpio_dir == 16'h0000)
+    135                                                //     && (HADDR[7:0] == gpio_data_addr)
+    136                                                //     // && HSEL // HSEL not used in Read always_ff
+    137                                                //     && !HWRITE
+    138                                                //     && HTRANS[1]
+    139                                                //     && HREADY) |-> ##1
+    140                                                //    ((HRDATA[15:0]==$past(GPIOIN[15:0],1)) && HREADYOUT)
+    141                                                // );
+    142                                              
+    143                                                // assert_gpio_dir: assert property
+    144                                                // ( @(posedge HCLK) disable iff (!HRESETn)
+    145                                                //   ((HADDR[7:0] == gpio_dir_addr)
+    146                                                //     && HSEL
+    147                                                //     && HWRITE
+    148                                                //     && HTRANS[1]
+    149                                                //     && HREADY) |-> ##1
+    150                                                //   ((HWDATA[7:0] == 8'h00 || HWDATA[7:0] == 8'h01)) ##1 (gpio_dir == $past(HWDATA[15:0], 1))
+    151                                                // );
+    152                                              
+    153                                                // assume_initial_valid: assume property
+    154                                                // ( @(posedge HCLK)
+    155                                                //   gpio_dir == 16'h0000
+    156                                                //   || gpio_dir == 16'h0001
+    157                                                // );
+    158                                              
+    159                                              endmodule
+
+Branch Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Branches                        12        11         1     91.66
+
+================================Branch Details================================
+
+Branch Coverage for file rtl/AHB_GPIO/AHBGPIO.sv --
+
+------------------------------------IF Branch------------------------------------
+    75                                       984     Count coming in to IF
+    75              1                        973         if(HREADY) begin
+                                              11     All False Count
+Branch totals: 2 hits of 2 branches = 100.00%
+
+------------------------------------IF Branch------------------------------------
+    84                                       981     Count coming in to IF
+    84              1                          2         if(!HRESETn)
+    86              1                        178         else if ((last_HADDR[7:0] == gpio_dir_addr) & last_HSEL & last_HWRITE & last_HTRANS[1])
+                                             801     All False Count
+Branch totals: 3 hits of 3 branches = 100.00%
+
+------------------------------------IF Branch------------------------------------
+    91                                       981     Count coming in to IF
+    91              1                          2         if(!HRESETn)
+    93              1                         90         else if ((gpio_dir == 16'h0001) & (last_HADDR[7:0] == gpio_data_addr) & last_HSEL & last_HWRITE & last_HTRANS[1]) begin
+                                             889     All False Count
+Branch totals: 3 hits of 3 branches = 100.00%
+
+------------------------------------IF Branch------------------------------------
+    100                                     1002     Count coming in to IF
+    100             1                          2         if(!HRESETn) begin
+    104             1                        499         else if (gpio_dir == 16'h0000) begin
+    108             1                        501         else if (gpio_dir == 16'h0001)
+                                         ***0***     All False Count
+Branch totals: 3 hits of 4 branches = 75.00%
+
+
+Condition Coverage:
+    Enabled Coverage            Active   Covered    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    FEC Condition Terms             11         8         3     72.72
+
+================================Condition Details================================
+
+Condition Coverage for file rtl/AHB_GPIO/AHBGPIO.sv --
+
+----------------Focused Condition View-------------------
+Line       86 Item    1  ((((last_HADDR[7:0] == 4) & last_HSEL) & last_HWRITE) & last_HTRANS[1])
+Condition totals: 3 of 4 input terms covered = 75.00%
+
+              Input Term   Covered  Reason for no coverage   Hint
+             -----------  --------  -----------------------  --------------
+  (last_HADDR[7:0] == 4)         Y
+               last_HSEL         N  '_0' not hit             Hit '_0'
+             last_HWRITE         Y
+          last_HTRANS[1]         Y
+
+     Rows:       Hits  FEC Target                Non-masking condition(s)      
+ ---------  ---------  --------------------      -------------------------     
+  Row   1:          1  (last_HADDR[7:0] == 4)_0  (last_HTRANS[1] && last_HWRITE && last_HSEL)
+  Row   2:          1  (last_HADDR[7:0] == 4)_1  (last_HTRANS[1] && last_HWRITE && last_HSEL)
+  Row   3:    ***0***  last_HSEL_0               (last_HTRANS[1] && last_HWRITE && (last_HADDR[7:0] == 4))
+  Row   4:          1  last_HSEL_1               (last_HTRANS[1] && last_HWRITE && (last_HADDR[7:0] == 4))
+  Row   5:          1  last_HWRITE_0             (last_HTRANS[1] && ((last_HADDR[7:0] == 4) & last_HSEL))
+  Row   6:          1  last_HWRITE_1             (last_HTRANS[1] && ((last_HADDR[7:0] == 4) & last_HSEL))
+  Row   7:          1  last_HTRANS[1]_0          (((last_HADDR[7:0] == 4) & last_HSEL) & last_HWRITE)
+  Row   8:          1  last_HTRANS[1]_1          (((last_HADDR[7:0] == 4) & last_HSEL) & last_HWRITE)
+
+----------------Focused Condition View-------------------
+Line       93 Item    1  (((((gpio_dir == 1) & (last_HADDR[7:0] == 0)) & last_HSEL) & last_HWRITE) & last_HTRANS[1])
+Condition totals: 4 of 5 input terms covered = 80.00%
+
+              Input Term   Covered  Reason for no coverage   Hint
+             -----------  --------  -----------------------  --------------
+         (gpio_dir == 1)         Y
+  (last_HADDR[7:0] == 0)         Y
+               last_HSEL         N  '_0' not hit             Hit '_0'
+             last_HWRITE         Y
+          last_HTRANS[1]         Y
+
+     Rows:       Hits  FEC Target                Non-masking condition(s)      
+ ---------  ---------  --------------------      -------------------------     
+  Row   1:          1  (gpio_dir == 1)_0         (last_HTRANS[1] && last_HWRITE && last_HSEL && (last_HADDR[7:0] == 0))
+  Row   2:          1  (gpio_dir == 1)_1         (last_HTRANS[1] && last_HWRITE && last_HSEL && (last_HADDR[7:0] == 0))
+  Row   3:          1  (last_HADDR[7:0] == 0)_0  (last_HTRANS[1] && last_HWRITE && last_HSEL && (gpio_dir == 1))
+  Row   4:          1  (last_HADDR[7:0] == 0)_1  (last_HTRANS[1] && last_HWRITE && last_HSEL && (gpio_dir == 1))
+  Row   5:    ***0***  last_HSEL_0               (last_HTRANS[1] && last_HWRITE && ((gpio_dir == 1) & (last_HADDR[7:0] == 0)))
+  Row   6:          1  last_HSEL_1               (last_HTRANS[1] && last_HWRITE && ((gpio_dir == 1) & (last_HADDR[7:0] == 0)))
+  Row   7:          1  last_HWRITE_0             (last_HTRANS[1] && (((gpio_dir == 1) & (last_HADDR[7:0] == 0)) & last_HSEL))
+  Row   8:          1  last_HWRITE_1             (last_HTRANS[1] && (((gpio_dir == 1) & (last_HADDR[7:0] == 0)) & last_HSEL))
+  Row   9:          1  last_HTRANS[1]_0          ((((gpio_dir == 1) & (last_HADDR[7:0] == 0)) & last_HSEL) & last_HWRITE)
+ Row   10:          1  last_HTRANS[1]_1          ((((gpio_dir == 1) & (last_HADDR[7:0] == 0)) & last_HSEL) & last_HWRITE)
+
+----------------Focused Condition View-------------------
+Line       104 Item    1  (gpio_dir == 0)
+Condition totals: 1 of 1 input term covered = 100.00%
+
+----------------Focused Condition View-------------------
+Line       108 Item    1  (gpio_dir == 1)
+Condition totals: 0 of 1 input term covered = 0.00%
+
+       Input Term   Covered  Reason for no coverage   Hint
+      -----------  --------  -----------------------  --------------
+  (gpio_dir == 1)         N  '_0' not hit             Hit '_0'
+
+     Rows:       Hits  FEC Target            Non-masking condition(s)      
+ ---------  ---------  --------------------  -------------------------     
+  Row   1:    ***0***  (gpio_dir == 1)_0     -                             
+  Row   2:          1  (gpio_dir == 1)_1     -                             
+
+
+Toggle Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Toggle Bins                    486       383       103     78.80
+
+================================Toggle Details================================
+
+Toggle Coverage for File rtl/AHB_GPIO/AHBGPIO.sv --
+
+       Line                                   Node      1H->0L      0L->1H  "Coverage"
+--------------------------------------------------------------------------------------
+         40                                HRESETn           0           1       50.00 
+         48                              PARITYSEL           0           0        0.00 
+         49                           INJECT_FAULT           0           0        0.00 
+         51                              HREADYOUT           0           0        0.00 
+         52                             HRDATA[31]           0           0        0.00 
+         52                             HRDATA[30]           0           0        0.00 
+         52                             HRDATA[29]           0           0        0.00 
+         52                             HRDATA[28]           0           0        0.00 
+         52                             HRDATA[27]           0           0        0.00 
+         52                             HRDATA[26]           0           0        0.00 
+         52                             HRDATA[25]           0           0        0.00 
+         52                             HRDATA[24]           0           0        0.00 
+         52                             HRDATA[23]           0           0        0.00 
+         52                             HRDATA[22]           0           0        0.00 
+         52                             HRDATA[21]           0           0        0.00 
+         52                             HRDATA[20]           0           0        0.00 
+         52                             HRDATA[19]           0           0        0.00 
+         52                             HRDATA[18]           0           0        0.00 
+         52                             HRDATA[17]           0           0        0.00 
+         52                             HRDATA[16]           0           0        0.00 
+         54                              PARITYERR           0           1       50.00 
+         63                         gpio_parityerr           0           1       50.00 
+         64                            gpio_dir[9]           0           0        0.00 
+         64                            gpio_dir[8]           0           0        0.00 
+         64                            gpio_dir[7]           0           0        0.00 
+         64                            gpio_dir[6]           0           0        0.00 
+         64                            gpio_dir[5]           0           0        0.00 
+         64                            gpio_dir[4]           0           0        0.00 
+         64                            gpio_dir[3]           0           0        0.00 
+         64                            gpio_dir[2]           0           0        0.00 
+         64                            gpio_dir[1]           0           0        0.00 
+         64                           gpio_dir[15]           0           0        0.00 
+         64                           gpio_dir[14]           0           0        0.00 
+         64                           gpio_dir[13]           0           0        0.00 
+         64                           gpio_dir[12]           0           0        0.00 
+         64                           gpio_dir[11]           0           0        0.00 
+         64                           gpio_dir[10]           0           0        0.00 
+         65                      gpio_data_next[9]           0           0        0.00 
+         65                      gpio_data_next[8]           0           0        0.00 
+         65                      gpio_data_next[7]           0           0        0.00 
+         65                      gpio_data_next[6]           0           0        0.00 
+         65                      gpio_data_next[5]           0           0        0.00 
+         65                      gpio_data_next[4]           0           0        0.00 
+         65                      gpio_data_next[3]           0           0        0.00 
+         65                      gpio_data_next[2]           0           0        0.00 
+         65                      gpio_data_next[1]           0           0        0.00 
+         65                     gpio_data_next[15]           0           0        0.00 
+         65                     gpio_data_next[14]           0           0        0.00 
+         65                     gpio_data_next[13]           0           0        0.00 
+         65                     gpio_data_next[12]           0           0        0.00 
+         65                     gpio_data_next[11]           0           0        0.00 
+         65                     gpio_data_next[10]           0           0        0.00 
+         65                      gpio_data_next[0]           0           0        0.00 
+
+Total Node Count     =        243 
+Toggled Node Count   =        190 
+Untoggled Node Count =         53 
+
+Toggle Coverage      =      78.80% (383 of 486 bins)
+
+=================================================================================
+=== File: rtl/AHB_GPIO/ahb_gpio_checker.sv
+=================================================================================
+Statement Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Stmts                            4         3         1     75.00
+
+================================Statement Details================================
+
+Statement Coverage for file rtl/AHB_GPIO/ahb_gpio_checker.sv --
+
+    1                                                module ahb_gpio_checker
+    2                                                ( input wire        HCLK
+    3                                                , input wire        HRESETn
+    4                                                , input wire [31:0] HADDR
+    5                                                , input wire [ 1:0] HTRANS
+    6                                                , input wire [31:0] HWDATA
+    7                                                , input wire        HWRITE
+    8                                                , input wire        HSEL
+    9                                                , input wire        HREADY
+    10                                               , input wire [16:0] GPIOIN
+    11                                               , input wire        HREADYOUT
+    12                                               , input wire [31:0] HRDATA
+    13                                               , input wire [16:0] GPIOOUT
+    14                                               , input wire        PARITYERR
+    15                                               , input wire        PARITYSEL
+    16                                               );
+    17                                               
+    18              1                          1       logic             gpio_cmd =  HSEL && HREADY && HTRANS[1];
+    19                                                 logic             gpio_dir;
+    20                                                 localparam [7:0]  gpio_data_addr = 8'h00;
+    21                                                 localparam [7:0]  gpio_dir_addr = 8'h04;
+    22                                               
+    23                                               // defined properties
+    24                                               
+    25                                                 property gpio_write;
+    26                                                   @(posedge HCLK) disable iff (!HRESETn)
+    27                                                   (HADDR[7:0] == gpio_data_addr) && gpio_cmd
+    28                                                   ##1
+    29                                                   (gpio_dir=='1) |->
+    30                                                   ##1
+    31                                                   (GPIOOUT[15:0] == $past(HWDATA[15:0],1)) && (^GPIOOUT == $past(PARITYSEL, 1));
+    32                                                 endproperty
+    33                                               
+    34                                                 property gpio_read;
+    35                                                   @(posedge HCLK) disable iff (!HRESETn)
+    36                                                   (HADDR[7:0] == gpio_data_addr) && gpio_cmd
+    37                                                   && (gpio_dir=='0) |->
+    38                                                   ##1
+    39                                                   ((HRDATA[15:0]==$past(GPIOIN[15:0],1)) && HREADYOUT && !PARITYERR);
+    40                                                 endproperty
+    41                                               
+    42              1                       1003       always_ff @(posedge HCLK)
+    43                                                 begin
+    44                                                   if(!HRESETn)
+    45                                                   begin
+    46              1                          2           gpio_dir            <= '0;
+    47                                                   end
+    48                                                   else
+    49                                                   begin
+    50                                                     if($past((gpio_cmd && (HADDR == gpio_dir_addr)),1))
+    51                                                     begin
+    52              1                    ***0***             gpio_dir          <= HWDATA;
+    53                                                     end
+    54                                                   end
+    55                                                 end
+    56                                               
+    57                                               // check behaviour
+    58                                               
+    59                                                 assert_gpio_write: assert property (gpio_write);
+    60                                                 assert_gpio_read:  assert property (gpio_read);
+    61                                               
+    62                                               endmodule
+
+Branch Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Branches                         4         3         1     75.00
+
+================================Branch Details================================
+
+Branch Coverage for file rtl/AHB_GPIO/ahb_gpio_checker.sv --
+
+------------------------------------IF Branch------------------------------------
+    44                                      1003     Count coming in to IF
+    44              1                          2         if(!HRESETn)
+    48              1                       1001         else
+Branch totals: 2 hits of 2 branches = 100.00%
+
+------------------------------------IF Branch------------------------------------
+    50                                      1001     Count coming in to IF
+    50              1                    ***0***           if($past((gpio_cmd && (HADDR == gpio_dir_addr)),1))
+                                            1001     All False Count
+Branch totals: 1 hit of 2 branches = 50.00%
+
+
+Toggle Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Toggle Bins                    284       242        42     85.21
+
+================================Toggle Details================================
+
+Toggle Coverage for File rtl/AHB_GPIO/ahb_gpio_checker.sv --
+
+       Line                                   Node      1H->0L      0L->1H  "Coverage"
+--------------------------------------------------------------------------------------
+          3                                HRESETn           0           1       50.00 
+         11                              HREADYOUT           0           0        0.00 
+         12                             HRDATA[31]           0           0        0.00 
+         12                             HRDATA[30]           0           0        0.00 
+         12                             HRDATA[29]           0           0        0.00 
+         12                             HRDATA[28]           0           0        0.00 
+         12                             HRDATA[27]           0           0        0.00 
+         12                             HRDATA[26]           0           0        0.00 
+         12                             HRDATA[25]           0           0        0.00 
+         12                             HRDATA[24]           0           0        0.00 
+         12                             HRDATA[23]           0           0        0.00 
+         12                             HRDATA[22]           0           0        0.00 
+         12                             HRDATA[21]           0           0        0.00 
+         12                             HRDATA[20]           0           0        0.00 
+         12                             HRDATA[19]           0           0        0.00 
+         12                             HRDATA[18]           0           0        0.00 
+         12                             HRDATA[17]           0           0        0.00 
+         12                             HRDATA[16]           0           0        0.00 
+         14                              PARITYERR           0           1       50.00 
+         15                              PARITYSEL           0           0        0.00 
+         18                               gpio_cmd           0           0        0.00 
+         19                               gpio_dir           0           0        0.00 
+
+Total Node Count     =        142 
+Toggled Node Count   =        120 
+Untoggled Node Count =         22 
+
+Toggle Coverage      =      85.21% (242 of 284 bins)
+
+=================================================================================
+=== File: tbench/ahb_gpio_tb.sv
+=================================================================================
+Statement Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Stmts                           33        33         0    100.00
+
+================================Statement Details================================
+
+Statement Coverage for file tbench/ahb_gpio_tb.sv --
+
+    1                                                //stub
+    2                                                interface ahb_gpio_if;
+    3                                                
+    4                                                  typedef enum bit[1:0] {
+    5                                                    IDLE = 2'b00,
+    6                                                    BUSY = 2'b01,
+    7                                                    NONSEQUENTIAL = 2'b10,
+    8                                                    SEQUENTIAL = 2'b11
+    9                                                  } htrans_types;
+    10                                               
+    11                                                 logic        HCLK;
+    12                                                 logic        HRESETn;
+    13                                                 logic [31:0] HADDR;
+    14                                                 logic [ 1:0] HTRANS;
+    15                                                 logic [31:0] HWDATA;
+    16                                                 logic        HWRITE;
+    17                                                 logic        HSEL;
+    18                                                 logic        HREADY;
+    19                                                 logic        HREADYOUT;
+    20                                                 logic [31:0] HRDATA;
+    21                                               
+    22                                                 logic [16:0] GPIOIN;
+    23                                                 logic [16:0] GPIOOUT;
+    24                                               
+    25                                                 modport DUT
+    26                                                 ( input HCLK, HRESETn, HADDR, HTRANS, HWDATA, HWRITE, HSEL, HREADY, GPIOIN,
+    27                                                   output HREADYOUT, HRDATA, GPIOOUT
+    28                                                 );
+    29                                               
+    30                                                 modport TB
+    31                                                 ( input HCLK, HREADYOUT, HRDATA, GPIOOUT,
+    32                                                   output HRESETn, HREADY, HADDR, HTRANS, HWDATA, HWRITE, HSEL, GPIOIN
+    33                                                 );
+    34                                               endinterface
+    35                                               
+    36                                               module ahb_gpio_tb;
+    37                                                 localparam [7:0] gpio_data_addr = 8'h00;
+    38                                                 localparam [7:0] gpio_dir_addr = 8'h04;
+    39                                                 localparam max_test_count = 1000;
+    40                                               
+    41                                                 logic parity_sel = '0;
+    42                                                 logic parity_err;
+    43                                                 integer test_count;
+    44                                               
+    45                                                 ahb_gpio_if gpioif();
+    46                                                 AHBGPIO gpio(
+    47                                                     .HCLK         (gpioif.HCLK),
+    48                                                     .HRESETn      (gpioif.HRESETn),
+    49                                                     .HADDR        (gpioif.HADDR),
+    50                                                     .HTRANS       (gpioif.HTRANS),
+    51                                                     .HWDATA       (gpioif.HWDATA),
+    52                                                     .HWRITE       (gpioif.HWRITE),
+    53                                                     .HSEL         (gpioif.HSEL),
+    54                                                     .HREADY       (gpioif.HREADY),
+    55                                                     .GPIOIN       (gpioif.GPIOIN),
+    56                                                     .PARITYSEL    (parity_sel),
+    57                                                     .INJECT_FAULT ('0),
+    58                                                     .HREADYOUT    (gpioif.HREADYOUT),
+    59                                                     .HRDATA       (gpioif.HRDATA),
+    60                                                     .GPIOOUT      (gpioif.GPIOOUT),
+    61                                                     .PARITYERR    (parity_err)
+    62                                                 );
+    63                                               
+    64                                                 ahb_gpio_checker gpio_checker(
+    65                                                     .HCLK         (gpioif.HCLK),
+    66                                                     .HRESETn      (gpioif.HRESETn),
+    67                                                     .HADDR        (gpioif.HADDR),
+    68                                                     .HTRANS       (gpioif.HTRANS),
+    69                                                     .HWDATA       (gpioif.HWDATA),
+    70                                                     .HWRITE       (gpioif.HWRITE),
+    71                                                     .HSEL         (gpioif.HSEL),
+    72                                                     .HREADY       (gpioif.HREADY),
+    73                                                     .GPIOIN       (gpioif.GPIOIN),
+    74                                                     .HREADYOUT    (gpioif.HREADYOUT),
+    75                                                     .HRDATA       (gpioif.HRDATA),
+    76                                                     .GPIOOUT      (gpioif.GPIOOUT),
+    77                                                     .PARITYERR    (parity_err),
+    78                                                     .PARITYSEL    (parity_sel)
+    79                                                 );
+    80                                               
+    81                                                 class gpio_stimulus;
+    82                                                   rand logic        HSEL;
+    83                                                   rand logic        HWRITE;
+    84                                                   rand logic        HREADY;
+    85                                                   rand logic [ 1:0] HTRANS;
+    86                                                   rand logic [31:0] HWDATA;
+    87                                                   rand logic [31:0] HADDR;
+    88                                                   rand logic [16:0] GPIOIN;
+    89                                               
+    90                                                   logic [31:0]      prev_haddr = '0;
+    91                                               
+    92                                               
+    93                                                   constraint c_hsel
+    94                                                   { HSEL dist { 1 :=99, 0:=1 }; }
+    95                                                   constraint c_hready
+    96                                                   { HREADY dist { 1 :=99, 0:=1 }; }
+    97                                                   constraint c_htrans
+    98                                                   { HTRANS dist { 2'b10 :=90, HTRANS :=10};}
+    99                                                   constraint c_haddr
+    100                                                  { HSEL -> HADDR dist {gpio_data_addr:=40, gpio_dir_addr:=40, HADDR:=20};}
+    101                                                  constraint c_gpio_dir_write
+    102                                                  {
+    103                                                    (prev_haddr[7:0]==gpio_dir_addr) -> (HWDATA==32'h0000 || HWDATA ==32'h0001);
+    104                                                  }
+    105                                                  constraint c_gpioin_parity
+    106                                                  { GPIOIN[16] == ~^{GPIOIN[15:0],parity_sel};}
+    107                                              
+    108                                                  function void post_randomize;
+    109             1                       1000           prev_haddr = HADDR;
+    110                                                  endfunction
+    111                                                endclass
+    112                                              
+    113                                                gpio_stimulus stimulus_vals;
+    114                                              
+    115                                                covergroup cover_ahb_transaction_vals;
+    116                                                  cp_hsel: coverpoint gpioif.HSEL{
+    117                                                    bins hi = {1};
+    118                                                    bins lo = {0};
+    119                                                  }
+    120                                                  cp_hready: coverpoint gpioif.HREADY{
+    121                                                    bins hi = {1};
+    122                                                    bins lo = {0};
+    123                                                  }
+    124                                                  cp_hwrite: coverpoint gpioif.HWRITE{
+    125                                                    bins write = {1};
+    126                                                    bins read  = {0};
+    127                                                  }
+    128                                                  cp_haddr:  coverpoint gpioif.HADDR {
+    129                                                    bins data_addr 		= {gpio_data_addr};
+    130                                                    bins dir_addr  		= {gpio_dir_addr};
+    131                                                    bins invalid_addr 	= default;
+    132                                                  }
+    133                                                  cp_ahb_transaction: cross cp_hsel, cp_hready, cp_hwrite, cp_haddr {
+    134                                                    bins ahb_write = cp_ahb_transaction with (cp_hsel==1 && cp_hready==1 && cp_hwrite==1 && cp_haddr==gpio_data_addr);
+    135                                                    bins ahb_read  = cp_ahb_transaction with (cp_hsel==1 && cp_hready==1 && cp_hwrite==0);
+    136                                                    bins ahb_dir   = cp_ahb_transaction with (cp_hsel==1 && cp_hready==1 && cp_hwrite==1 && cp_haddr==gpio_dir_addr);
+    137                                                    ignore_bins ignore_invalid = cp_ahb_transaction with (cp_hsel!=1);
+    138                                                  }
+    139                                              
+    140                                                endgroup
+    141                                              
+    142                                                covergroup cover_hwdata_values;
+    143                                                  coverpoint gpioif.HWDATA;
+    144                                                endgroup
+    145                                              
+    146                                                covergroup cover_hrdata_values;
+    147                                                  coverpoint gpioif.HRDATA[15:0];
+    148                                                endgroup
+    149                                              
+    150                                                covergroup cover_gpio_in_values;
+    151                                                  coverpoint gpioif.GPIOIN[15:0];
+    152                                                endgroup
+    153                                              
+    154                                                covergroup cover_gpio_out_values;
+    155                                                  coverpoint gpioif.GPIOOUT[15:0];
+    156                                                endgroup
+    157                                              
+    158                                                task deassert_reset();
+    159                                                begin
+    160             1                          1         gpioif.HRESETn = 0;
+    161             1                          1         @(posedge gpioif.HCLK);
+    162             1                          1         @(posedge gpioif.HCLK);
+    163             1                          1         gpioif.HRESETn = 1;
+    164                                                end
+    165                                                endtask
+    166                                              
+    167                                                initial begin
+    168                                                  cover_hwdata_values covhwdata;
+    169                                                  cover_hrdata_values covhrdata;
+    170                                                  cover_gpio_in_values covgpioin;
+    171                                                  cover_gpio_out_values covgpioout;
+    172                                                  cover_ahb_transaction_vals covahbtransactionvals;
+    173             1                          1         covhwdata   	          = new();
+    174             1                          1         covhrdata     	        = new();
+    175             1                          1         covgpioin    	          = new();
+    176             1                          1         covgpioout     	        = new();
+    177             1                          1         covahbtransactionvals   = new();
+    178             1                          1         stimulus_vals 	        = new();
+    179             1                          1         deassert_reset();
+    180                                              
+    181             1                          1         for(test_count = 0; test_count < max_test_count;test_count++)
+    181             2                       1000     
+    182                                                  begin
+    183                                                    assert (stimulus_vals.randomize) else $fatal;
+    184             1                       1000           gpioif.HSEL  = stimulus_vals.HSEL;
+    185             1                       1000           gpioif.HWRITE  = stimulus_vals.HWRITE;
+    186             1                       1000           gpioif.HREADY   = stimulus_vals.HREADY;
+    187             1                       1000           gpioif.HTRANS  = stimulus_vals.HTRANS;
+    188             1                       1000           gpioif.HWDATA  = stimulus_vals.HWDATA;
+    189             1                       1000           gpioif.HADDR  = stimulus_vals.HADDR;
+    190             1                       1000           gpioif.GPIOIN  = stimulus_vals.GPIOIN;
+    191                                              
+    192             1                       1000           covhwdata.sample();
+    193             1                       1000           covgpioin.sample();
+    194             1                       1000           covhrdata.sample();
+    195             1                       1000           covgpioout.sample();
+    196                                              
+    197             1                       1000           covahbtransactionvals.sample();
+    198                                              
+    199             1                       1000         @(posedge gpioif.HCLK);
+    200                                                  end
+    201             1                          1         @(posedge gpioif.HCLK);
+    202             1                          1         $finish;
+    203                                                end
+    204                                                initial begin
+    205             1                          1         gpioif.HCLK = 0;
+    206             1                          1         forever #1 gpioif.HCLK = ! gpioif.HCLK;
+    206             2                       2006     
+    206             3                       2005     
+    207                                                end
+    208                                              endmodule
+
+Toggle Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Toggle Bins                    342       261        81     76.31
+
+================================Toggle Details================================
+
+Toggle Coverage for File tbench/ahb_gpio_tb.sv --
+
+       Line                                   Node      1H->0L      0L->1H  "Coverage"
+--------------------------------------------------------------------------------------
+         12                                HRESETn           0           1       50.00 
+         19                              HREADYOUT           0           0        0.00 
+         20                             HRDATA[31]           0           0        0.00 
+         20                             HRDATA[30]           0           0        0.00 
+         20                             HRDATA[29]           0           0        0.00 
+         20                             HRDATA[28]           0           0        0.00 
+         20                             HRDATA[27]           0           0        0.00 
+         20                             HRDATA[26]           0           0        0.00 
+         20                             HRDATA[25]           0           0        0.00 
+         20                             HRDATA[24]           0           0        0.00 
+         20                             HRDATA[23]           0           0        0.00 
+         20                             HRDATA[22]           0           0        0.00 
+         20                             HRDATA[21]           0           0        0.00 
+         20                             HRDATA[20]           0           0        0.00 
+         20                             HRDATA[19]           0           0        0.00 
+         20                             HRDATA[18]           0           0        0.00 
+         20                             HRDATA[17]           0           0        0.00 
+         20                             HRDATA[16]           0           0        0.00 
+         42                             parity_err           0           1       50.00 
+         43                          test_count[9]           0           1       50.00 
+         43                         test_count[31]           0           0        0.00 
+         43                         test_count[30]           0           0        0.00 
+         43                         test_count[29]           0           0        0.00 
+         43                         test_count[28]           0           0        0.00 
+         43                         test_count[27]           0           0        0.00 
+         43                         test_count[26]           0           0        0.00 
+         43                         test_count[25]           0           0        0.00 
+         43                         test_count[24]           0           0        0.00 
+         43                         test_count[23]           0           0        0.00 
+         43                         test_count[22]           0           0        0.00 
+         43                         test_count[21]           0           0        0.00 
+         43                         test_count[20]           0           0        0.00 
+         43                         test_count[19]           0           0        0.00 
+         43                         test_count[18]           0           0        0.00 
+         43                         test_count[17]           0           0        0.00 
+         43                         test_count[16]           0           0        0.00 
+         43                         test_count[15]           0           0        0.00 
+         43                         test_count[14]           0           0        0.00 
+         43                         test_count[13]           0           0        0.00 
+         43                         test_count[12]           0           0        0.00 
+         43                         test_count[11]           0           0        0.00 
+         43                         test_count[10]           0           0        0.00 
+
+Total Node Count     =        171 
+Toggled Node Count   =        129 
+Untoggled Node Count =         42 
+
+Toggle Coverage      =      76.31% (261 of 342 bins)
+
+COVERGROUP COVERAGE:
+-----------------------------------------------------------------------------------------------
+Covergroup                                             Metric       Goal    Status               
+                                                                                              
+-----------------------------------------------------------------------------------------------
+ TYPE /ahb_gpio_tb/cover_ahb_transaction_vals          97.14%        100    Uncovered            
+    covered/total bins:                                    14         15                      
+    missing/total bins:                                     1         15                      
+    % Hit:                                             93.33%        100                      
+    Coverpoint cover_ahb_transaction_vals::cp_hsel    100.00%        100    Covered              
+        covered/total bins:                                 2          2                      
+        missing/total bins:                                 0          2                      
+        % Hit:                                        100.00%        100                      
+    Coverpoint cover_ahb_transaction_vals::cp_hready 
+                                                      100.00%        100    Covered              
+        covered/total bins:                                 2          2                      
+        missing/total bins:                                 0          2                      
+        % Hit:                                        100.00%        100                      
+    Coverpoint cover_ahb_transaction_vals::cp_hwrite 
+                                                      100.00%        100    Covered              
+        covered/total bins:                                 2          2                      
+        missing/total bins:                                 0          2                      
+        % Hit:                                        100.00%        100                      
+    Coverpoint cover_ahb_transaction_vals::cp_haddr 
+                                                      100.00%        100    Covered              
+        covered/total bins:                                 2          2                      
+        missing/total bins:                                 0          2                      
+        % Hit:                                        100.00%        100                      
+    Cross cover_ahb_transaction_vals::cp_ahb_transaction 
+                                                       85.71%        100    Uncovered            
+        covered/total bins:                                 6          7                      
+        missing/total bins:                                 1          7                      
+        % Hit:                                         85.71%        100                      
+ Covergroup instance \/ahb_gpio_tb/#ublk#235519730#167/covahbtransactionvals  
+                                                       97.14%        100    Uncovered            
+    covered/total bins:                                    14         15                      
+    missing/total bins:                                     1         15                      
+    % Hit:                                             93.33%        100                      
+    Coverpoint cp_hsel                                100.00%        100    Covered              
+        covered/total bins:                                 2          2                      
+        missing/total bins:                                 0          2                      
+        % Hit:                                        100.00%        100                      
+        bin hi                                            990          1    Covered              
+        bin lo                                             10          1    Covered              
+    Coverpoint cp_hready                              100.00%        100    Covered              
+        covered/total bins:                                 2          2                      
+        missing/total bins:                                 0          2                      
+        % Hit:                                        100.00%        100                      
+        bin hi                                            990          1    Covered              
+        bin lo                                             10          1    Covered              
+    Coverpoint cp_hwrite                              100.00%        100    Covered              
+        covered/total bins:                                 2          2                      
+        missing/total bins:                                 0          2                      
+        % Hit:                                        100.00%        100                      
+        bin write                                         485          1    Covered              
+        bin read                                          515          1    Covered              
+    Coverpoint cp_haddr                               100.00%        100    Covered              
+        covered/total bins:                                 2          2                      
+        missing/total bins:                                 0          2                      
+        % Hit:                                        100.00%        100                      
+        bin data_addr                                     390          1    Covered              
+        bin dir_addr                                      415          1    Covered              
+        default bin invalid_addr                          195               Occurred             
+    Cross cp_ahb_transaction                           85.71%        100    Uncovered            
+        covered/total bins:                                 6          7                      
+        missing/total bins:                                 1          7                      
+        % Hit:                                         85.71%        100                      
+        bin <hi,lo,write,data_addr>                         5          1    Covered              
+        bin <hi,lo,write,dir_addr>                          0          1    ZERO                 
+        bin <hi,lo,read,data_addr>                          2          1    Covered              
+        bin <hi,lo,read,dir_addr>                           1          1    Covered              
+        ignore_bin ignore_invalid                           0               ZERO                 
+        bin ahb_write                                     185          1    Covered              
+        bin ahb_read                                      419          1    Covered              
+        bin ahb_dir                                       193          1    Covered              
+ TYPE /ahb_gpio_tb/cover_hwdata_values                100.00%        100    Covered              
+    covered/total bins:                                    64         64                      
+    missing/total bins:                                     0         64                      
+    % Hit:                                            100.00%        100                      
+    Coverpoint cover_hwdata_values::#coverpoint__0# 
+                                                      100.00%        100    Covered              
+        covered/total bins:                                64         64                      
+        missing/total bins:                                 0         64                      
+        % Hit:                                        100.00%        100                      
+ Covergroup instance \/ahb_gpio_tb/#ublk#235519730#167/covhwdata  
+                                                      100.00%        100    Covered              
+    covered/total bins:                                    64         64                      
+    missing/total bins:                                     0         64                      
+    % Hit:                                            100.00%        100                      
+    Coverpoint #coverpoint__0#                        100.00%        100    Covered              
+        covered/total bins:                                64         64                      
+        missing/total bins:                                 0         64                      
+        % Hit:                                        100.00%        100                      
+        bin auto[0:67108863]                              423          1    Covered              
+        bin auto[67108864:134217727]                        4          1    Covered              
+        bin auto[134217728:201326591]                       7          1    Covered              
+        bin auto[201326592:268435455]                       8          1    Covered              
+        bin auto[268435456:335544319]                      10          1    Covered              
+        bin auto[335544320:402653183]                      10          1    Covered              
+        bin auto[402653184:469762047]                       9          1    Covered              
+        bin auto[469762048:536870911]                      10          1    Covered              
+        bin auto[536870912:603979775]                       8          1    Covered              
+        bin auto[603979776:671088639]                       7          1    Covered              
+        bin auto[671088640:738197503]                       9          1    Covered              
+        bin auto[738197504:805306367]                       7          1    Covered              
+        bin auto[805306368:872415231]                      12          1    Covered              
+        bin auto[872415232:939524095]                       6          1    Covered              
+        bin auto[939524096:1006632959]                     15          1    Covered              
+        bin auto[1006632960:1073741823]                    11          1    Covered              
+        bin auto[1073741824:1140850687]                     7          1    Covered              
+        bin auto[1140850688:1207959551]                    15          1    Covered              
+        bin auto[1207959552:1275068415]                     7          1    Covered              
+        bin auto[1275068416:1342177279]                     7          1    Covered              
+        bin auto[1342177280:1409286143]                     7          1    Covered              
+        bin auto[1409286144:1476395007]                     5          1    Covered              
+        bin auto[1476395008:1543503871]                    10          1    Covered              
+        bin auto[1543503872:1610612735]                    16          1    Covered              
+        bin auto[1610612736:1677721599]                    10          1    Covered              
+        bin auto[1677721600:1744830463]                     8          1    Covered              
+        bin auto[1744830464:1811939327]                    16          1    Covered              
+        bin auto[1811939328:1879048191]                     6          1    Covered              
+        bin auto[1879048192:1946157055]                     8          1    Covered              
+        bin auto[1946157056:2013265919]                    11          1    Covered              
+        bin auto[2013265920:2080374783]                    10          1    Covered              
+        bin auto[2080374784:2147483647]                    12          1    Covered              
+        bin auto[2147483648:2214592511]                     8          1    Covered              
+        bin auto[2214592512:2281701375]                    11          1    Covered              
+        bin auto[2281701376:2348810239]                     8          1    Covered              
+        bin auto[2348810240:2415919103]                    10          1    Covered              
+        bin auto[2415919104:2483027967]                     7          1    Covered              
+        bin auto[2483027968:2550136831]                     6          1    Covered              
+        bin auto[2550136832:2617245695]                     5          1    Covered              
+        bin auto[2617245696:2684354559]                    10          1    Covered              
+        bin auto[2684354560:2751463423]                    11          1    Covered              
+        bin auto[2751463424:2818572287]                    10          1    Covered              
+        bin auto[2818572288:2885681151]                     5          1    Covered              
+        bin auto[2885681152:2952790015]                     5          1    Covered              
+        bin auto[2952790016:3019898879]                    15          1    Covered              
+        bin auto[3019898880:3087007743]                     9          1    Covered              
+        bin auto[3087007744:3154116607]                     7          1    Covered              
+        bin auto[3154116608:3221225471]                    14          1    Covered              
+        bin auto[3221225472:3288334335]                    12          1    Covered              
+        bin auto[3288334336:3355443199]                     7          1    Covered              
+        bin auto[3355443200:3422552063]                    10          1    Covered              
+        bin auto[3422552064:3489660927]                    10          1    Covered              
+        bin auto[3489660928:3556769791]                     9          1    Covered              
+        bin auto[3556769792:3623878655]                     6          1    Covered              
+        bin auto[3623878656:3690987519]                    11          1    Covered              
+        bin auto[3690987520:3758096383]                     8          1    Covered              
+        bin auto[3758096384:3825205247]                    11          1    Covered              
+        bin auto[3825205248:3892314111]                    14          1    Covered              
+        bin auto[3892314112:3959422975]                    13          1    Covered              
+        bin auto[3959422976:4026531839]                     7          1    Covered              
+        bin auto[4026531840:4093640703]                     7          1    Covered              
+        bin auto[4093640704:4160749567]                     5          1    Covered              
+        bin auto[4160749568:4227858431]                     8          1    Covered              
+        bin auto[4227858432:4294967295]                    10          1    Covered              
+ TYPE /ahb_gpio_tb/cover_hrdata_values                100.00%        100    Covered              
+    covered/total bins:                                    64         64                      
+    missing/total bins:                                     0         64                      
+    % Hit:                                            100.00%        100                      
+    Coverpoint cover_hrdata_values::#coverpoint__0# 
+                                                      100.00%        100    Covered              
+        covered/total bins:                                64         64                      
+        missing/total bins:                                 0         64                      
+        % Hit:                                        100.00%        100                      
+ Covergroup instance \/ahb_gpio_tb/#ublk#235519730#167/covhrdata  
+                                                      100.00%        100    Covered              
+    covered/total bins:                                    64         64                      
+    missing/total bins:                                     0         64                      
+    % Hit:                                            100.00%        100                      
+    Coverpoint #coverpoint__0#                        100.00%        100    Covered              
+        covered/total bins:                                64         64                      
+        missing/total bins:                                 0         64                      
+        % Hit:                                        100.00%        100                      
+        bin auto[0:1023]                                   27          1    Covered              
+        bin auto[1024:2047]                                 5          1    Covered              
+        bin auto[2048:3071]                                11          1    Covered              
+        bin auto[3072:4095]                                 9          1    Covered              
+        bin auto[4096:5119]                                28          1    Covered              
+        bin auto[5120:6143]                                 4          1    Covered              
+        bin auto[6144:7167]                                17          1    Covered              
+        bin auto[7168:8191]                                10          1    Covered              
+        bin auto[8192:9215]                                30          1    Covered              
+        bin auto[9216:10239]                               14          1    Covered              
+        bin auto[10240:11263]                               9          1    Covered              
+        bin auto[11264:12287]                               8          1    Covered              
+        bin auto[12288:13311]                              11          1    Covered              
+        bin auto[13312:14335]                              18          1    Covered              
+        bin auto[14336:15359]                              25          1    Covered              
+        bin auto[15360:16383]                              29          1    Covered              
+        bin auto[16384:17407]                              18          1    Covered              
+        bin auto[17408:18431]                              10          1    Covered              
+        bin auto[18432:19455]                              19          1    Covered              
+        bin auto[19456:20479]                               7          1    Covered              
+        bin auto[20480:21503]                              22          1    Covered              
+        bin auto[21504:22527]                               6          1    Covered              
+        bin auto[22528:23551]                              24          1    Covered              
+        bin auto[23552:24575]                              13          1    Covered              
+        bin auto[24576:25599]                              13          1    Covered              
+        bin auto[25600:26623]                              12          1    Covered              
+        bin auto[26624:27647]                               7          1    Covered              
+        bin auto[27648:28671]                              21          1    Covered              
+        bin auto[28672:29695]                              12          1    Covered              
+        bin auto[29696:30719]                               6          1    Covered              
+        bin auto[30720:31743]                               4          1    Covered              
+        bin auto[31744:32767]                              31          1    Covered              
+        bin auto[32768:33791]                              12          1    Covered              
+        bin auto[33792:34815]                              32          1    Covered              
+        bin auto[34816:35839]                              25          1    Covered              
+        bin auto[35840:36863]                               9          1    Covered              
+        bin auto[36864:37887]                              14          1    Covered              
+        bin auto[37888:38911]                               6          1    Covered              
+        bin auto[38912:39935]                               7          1    Covered              
+        bin auto[39936:40959]                              15          1    Covered              
+        bin auto[40960:41983]                              15          1    Covered              
+        bin auto[41984:43007]                              15          1    Covered              
+        bin auto[43008:44031]                              28          1    Covered              
+        bin auto[44032:45055]                              16          1    Covered              
+        bin auto[45056:46079]                               7          1    Covered              
+        bin auto[46080:47103]                              18          1    Covered              
+        bin auto[47104:48127]                               6          1    Covered              
+        bin auto[48128:49151]                              13          1    Covered              
+        bin auto[49152:50175]                               7          1    Covered              
+        bin auto[50176:51199]                              25          1    Covered              
+        bin auto[51200:52223]                              20          1    Covered              
+        bin auto[52224:53247]                               9          1    Covered              
+        bin auto[53248:54271]                              10          1    Covered              
+        bin auto[54272:55295]                               7          1    Covered              
+        bin auto[55296:56319]                              27          1    Covered              
+        bin auto[56320:57343]                              17          1    Covered              
+        bin auto[57344:58367]                               8          1    Covered              
+        bin auto[58368:59391]                              44          1    Covered              
+        bin auto[59392:60415]                              16          1    Covered              
+        bin auto[60416:61439]                              28          1    Covered              
+        bin auto[61440:62463]                              13          1    Covered              
+        bin auto[62464:63487]                              24          1    Covered              
+        bin auto[63488:64511]                              19          1    Covered              
+        bin auto[64512:65535]                               8          1    Covered              
+ TYPE /ahb_gpio_tb/cover_gpio_in_values               100.00%        100    Covered              
+    covered/total bins:                                    64         64                      
+    missing/total bins:                                     0         64                      
+    % Hit:                                            100.00%        100                      
+    Coverpoint cover_gpio_in_values::#coverpoint__0# 
+                                                      100.00%        100    Covered              
+        covered/total bins:                                64         64                      
+        missing/total bins:                                 0         64                      
+        % Hit:                                        100.00%        100                      
+ Covergroup instance \/ahb_gpio_tb/#ublk#235519730#167/covgpioin  
+                                                      100.00%        100    Covered              
+    covered/total bins:                                    64         64                      
+    missing/total bins:                                     0         64                      
+    % Hit:                                            100.00%        100                      
+    Coverpoint #coverpoint__0#                        100.00%        100    Covered              
+        covered/total bins:                                64         64                      
+        missing/total bins:                                 0         64                      
+        % Hit:                                        100.00%        100                      
+        bin auto[0:1023]                                   11          1    Covered              
+        bin auto[1024:2047]                                13          1    Covered              
+        bin auto[2048:3071]                                21          1    Covered              
+        bin auto[3072:4095]                                14          1    Covered              
+        bin auto[4096:5119]                                17          1    Covered              
+        bin auto[5120:6143]                                14          1    Covered              
+        bin auto[6144:7167]                                15          1    Covered              
+        bin auto[7168:8191]                                17          1    Covered              
+        bin auto[8192:9215]                                21          1    Covered              
+        bin auto[9216:10239]                               10          1    Covered              
+        bin auto[10240:11263]                              16          1    Covered              
+        bin auto[11264:12287]                              15          1    Covered              
+        bin auto[12288:13311]                              14          1    Covered              
+        bin auto[13312:14335]                              30          1    Covered              
+        bin auto[14336:15359]                              13          1    Covered              
+        bin auto[15360:16383]                              19          1    Covered              
+        bin auto[16384:17407]                              15          1    Covered              
+        bin auto[17408:18431]                              19          1    Covered              
+        bin auto[18432:19455]                              13          1    Covered              
+        bin auto[19456:20479]                              11          1    Covered              
+        bin auto[20480:21503]                              30          1    Covered              
+        bin auto[21504:22527]                               6          1    Covered              
+        bin auto[22528:23551]                               7          1    Covered              
+        bin auto[23552:24575]                              15          1    Covered              
+        bin auto[24576:25599]                              21          1    Covered              
+        bin auto[25600:26623]                              18          1    Covered              
+        bin auto[26624:27647]                              20          1    Covered              
+        bin auto[27648:28671]                              18          1    Covered              
+        bin auto[28672:29695]                              18          1    Covered              
+        bin auto[29696:30719]                              14          1    Covered              
+        bin auto[30720:31743]                               8          1    Covered              
+        bin auto[31744:32767]                              18          1    Covered              
+        bin auto[32768:33791]                              17          1    Covered              
+        bin auto[33792:34815]                              22          1    Covered              
+        bin auto[34816:35839]                              17          1    Covered              
+        bin auto[35840:36863]                              16          1    Covered              
+        bin auto[36864:37887]                               9          1    Covered              
+        bin auto[37888:38911]                              15          1    Covered              
+        bin auto[38912:39935]                              15          1    Covered              
+        bin auto[39936:40959]                              11          1    Covered              
+        bin auto[40960:41983]                               8          1    Covered              
+        bin auto[41984:43007]                              16          1    Covered              
+        bin auto[43008:44031]                              26          1    Covered              
+        bin auto[44032:45055]                              21          1    Covered              
+        bin auto[45056:46079]                              14          1    Covered              
+        bin auto[46080:47103]                              15          1    Covered              
+        bin auto[47104:48127]                              15          1    Covered              
+        bin auto[48128:49151]                              17          1    Covered              
+        bin auto[49152:50175]                              12          1    Covered              
+        bin auto[50176:51199]                              13          1    Covered              
+        bin auto[51200:52223]                              21          1    Covered              
+        bin auto[52224:53247]                              18          1    Covered              
+        bin auto[53248:54271]                              18          1    Covered              
+        bin auto[54272:55295]                              11          1    Covered              
+        bin auto[55296:56319]                              10          1    Covered              
+        bin auto[56320:57343]                              12          1    Covered              
+        bin auto[57344:58367]                              15          1    Covered              
+        bin auto[58368:59391]                              12          1    Covered              
+        bin auto[59392:60415]                              16          1    Covered              
+        bin auto[60416:61439]                              14          1    Covered              
+        bin auto[61440:62463]                              17          1    Covered              
+        bin auto[62464:63487]                              13          1    Covered              
+        bin auto[63488:64511]                              17          1    Covered              
+        bin auto[64512:65535]                              16          1    Covered              
+ TYPE /ahb_gpio_tb/cover_gpio_out_values               79.68%        100    Uncovered            
+    covered/total bins:                                    51         64                      
+    missing/total bins:                                    13         64                      
+    % Hit:                                             79.68%        100                      
+    Coverpoint cover_gpio_out_values::#coverpoint__0# 
+                                                       79.68%        100    Uncovered            
+        covered/total bins:                                51         64                      
+        missing/total bins:                                13         64                      
+        % Hit:                                         79.68%        100                      
+ Covergroup instance \/ahb_gpio_tb/#ublk#235519730#167/covgpioout  
+                                                       79.68%        100    Uncovered            
+    covered/total bins:                                    51         64                      
+    missing/total bins:                                    13         64                      
+    % Hit:                                             79.68%        100                      
+    Coverpoint #coverpoint__0#                         79.68%        100    Uncovered            
+        covered/total bins:                                51         64                      
+        missing/total bins:                                13         64                      
+        % Hit:                                         79.68%        100                      
+        bin auto[0:1023]                                   33          1    Covered              
+        bin auto[1024:2047]                                 1          1    Covered              
+        bin auto[2048:3071]                                 0          1    ZERO                 
+        bin auto[3072:4095]                                 0          1    ZERO                 
+        bin auto[4096:5119]                                38          1    Covered              
+        bin auto[5120:6143]                                 0          1    ZERO                 
+        bin auto[6144:7167]                                77          1    Covered              
+        bin auto[7168:8191]                                 4          1    Covered              
+        bin auto[8192:9215]                                44          1    Covered              
+        bin auto[9216:10239]                                8          1    Covered              
+        bin auto[10240:11263]                               0          1    ZERO                 
+        bin auto[11264:12287]                               0          1    ZERO                 
+        bin auto[12288:13311]                               2          1    Covered              
+        bin auto[13312:14335]                               4          1    Covered              
+        bin auto[14336:15359]                              34          1    Covered              
+        bin auto[15360:16383]                              96          1    Covered              
+        bin auto[16384:17407]                              21          1    Covered              
+        bin auto[17408:18431]                               0          1    ZERO                 
+        bin auto[18432:19455]                              56          1    Covered              
+        bin auto[19456:20479]                               3          1    Covered              
+        bin auto[20480:21503]                              25          1    Covered              
+        bin auto[21504:22527]                               2          1    Covered              
+        bin auto[22528:23551]                              34          1    Covered              
+        bin auto[23552:24575]                               3          1    Covered              
+        bin auto[24576:25599]                               3          1    Covered              
+        bin auto[25600:26623]                               1          1    Covered              
+        bin auto[26624:27647]                               0          1    ZERO                 
+        bin auto[27648:28671]                              36          1    Covered              
+        bin auto[28672:29695]                               2          1    Covered              
+        bin auto[29696:30719]                               0          1    ZERO                 
+        bin auto[30720:31743]                               0          1    ZERO                 
+        bin auto[31744:32767]                              39          1    Covered              
+        bin auto[32768:33791]                               5          1    Covered              
+        bin auto[33792:34815]                              79          1    Covered              
+        bin auto[34816:35839]                              13          1    Covered              
+        bin auto[35840:36863]                               3          1    Covered              
+        bin auto[36864:37887]                              10          1    Covered              
+        bin auto[37888:38911]                               3          1    Covered              
+        bin auto[38912:39935]                               0          1    ZERO                 
+        bin auto[39936:40959]                               9          1    Covered              
+        bin auto[40960:41983]                              13          1    Covered              
+        bin auto[41984:43007]                               5          1    Covered              
+        bin auto[43008:44031]                              17          1    Covered              
+        bin auto[44032:45055]                              12          1    Covered              
+        bin auto[45056:46079]                               1          1    Covered              
+        bin auto[46080:47103]                               9          1    Covered              
+        bin auto[47104:48127]                               0          1    ZERO                 
+        bin auto[48128:49151]                               4          1    Covered              
+        bin auto[49152:50175]                               2          1    Covered              
+        bin auto[50176:51199]                              15          1    Covered              
+        bin auto[51200:52223]                              16          1    Covered              
+        bin auto[52224:53247]                               1          1    Covered              
+        bin auto[53248:54271]                               4          1    Covered              
+        bin auto[54272:55295]                               0          1    ZERO                 
+        bin auto[55296:56319]                              22          1    Covered              
+        bin auto[56320:57343]                              22          1    Covered              
+        bin auto[57344:58367]                               0          1    ZERO                 
+        bin auto[58368:59391]                              43          1    Covered              
+        bin auto[59392:60415]                               6          1    Covered              
+        bin auto[60416:61439]                              64          1    Covered              
+        bin auto[61440:62463]                               5          1    Covered              
+        bin auto[62464:63487]                              19          1    Covered              
+        bin auto[63488:64511]                              29          1    Covered              
+        bin auto[64512:65535]                               3          1    Covered              
+
+TOTAL COVERGROUP COVERAGE: 95.36%  COVERGROUP TYPES: 5
+
+ASSERTION RESULTS:
+--------------------------------------------------------------------
+Name                 File(Line)                   Failure      Pass 
+                                                  Count        Count
+--------------------------------------------------------------------
+/ahb_gpio_tb/#ublk#235519730#167/#ublk#235519730#182/immed__183
+                     tbench/ahb_gpio_tb.sv(183)
+                                                        0          1
+/ahb_gpio_tb/gpio_checker/assert_gpio_write
+                     rtl/AHB_GPIO/ahb_gpio_checker.sv(59)
+                                                        0          0
+/ahb_gpio_tb/gpio_checker/assert_gpio_read
+                     rtl/AHB_GPIO/ahb_gpio_checker.sv(60)
+                                                        0          0
+
+Total Coverage By File (code coverage only, filtered view): 84.52%
+

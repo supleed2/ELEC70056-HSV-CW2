@@ -74,7 +74,8 @@ module ahb_gpio_tb;
       .HREADYOUT    (gpioif.HREADYOUT),
       .HRDATA       (gpioif.HRDATA),
       .GPIOOUT      (gpioif.GPIOOUT),
-      .PARITYERR    (parity_err)
+      .PARITYERR    (parity_err),
+      .PARITYSEL    (parity_sel)
   );
 
   class gpio_stimulus;

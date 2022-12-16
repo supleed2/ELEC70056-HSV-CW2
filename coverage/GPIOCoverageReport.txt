@@ -1,0 +1,36 @@
+Coverage Report Summary Data by file
+
+=================================================================================
+=== File: rtl/AHB_GPIO/AHBGPIO.sv
+=================================================================================
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Stmts                           19        19         0    100.00
+    Branches                        12        11         1     91.66
+    FEC Condition Terms             11         8         3     72.72
+    Toggle Bins                    486       381       105     78.39
+
+=================================================================================
+=== File: rtl/AHB_GPIO/ahb_gpio_checker.sv
+=================================================================================
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Stmts                            4         3         1     75.00
+    Branches                         4         3         1     75.00
+    Toggle Bins                    282       241        41     85.46
+
+=================================================================================
+=== File: tbench/ahb_gpio_tb.sv
+=================================================================================
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Stmts                           33        33         0    100.00
+    Toggle Bins                    342       260        82     76.02
+
+
+TOTAL COVERGROUP COVERAGE: 95.36%  COVERGROUP TYPES: 5
+
+TOTAL ASSERTION COVERAGE: 50.00%  ASSERTIONS: 4
+
+Total Coverage By File (code coverage only, filtered view): 84.47%
+
