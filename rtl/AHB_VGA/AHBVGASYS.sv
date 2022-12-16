@@ -95,6 +95,7 @@ module AHBVGA(
   //VGA interface: control the synchronization and color signals for a particular resolution
   VGAInterface uVGAInterface (
     .CLK(HCLK),
+    .resetn(HRESETn),
     .COLOUR_IN(cin),
     .cout(RGB),
     .hs(HSYNC),

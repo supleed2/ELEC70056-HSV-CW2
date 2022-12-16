@@ -79,9 +79,9 @@ module ahb_vga_tb;
   integer reset_time;
   task deassert_reset();
   begin
+    #20;
     vgaif.HRESETn = 0;
-    @(posedge vgaif.HCLK);
-    @(posedge vgaif.HCLK);
+    #100;
     vgaif.HRESETn = 1;
   end
   endtask
@@ -98,7 +98,7 @@ module ahb_vga_tb;
           $display(line);
           line = "";
       end else if (vgaif.HSYNC)
-        if (checker_rgb == 8'd28)
+        if (vgaif.RGB == 8'd28)
           line = {line, "#"};
         else
           line = {line, "."};
