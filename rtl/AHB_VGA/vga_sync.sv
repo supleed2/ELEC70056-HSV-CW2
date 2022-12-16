@@ -36,6 +36,7 @@
 
 module VGAInterface(
     input CLK,
+    input resetn,
     input [7:0] COLOUR_IN,
     output reg [7:0] cout,
     output reg hs,
@@ -61,12 +62,14 @@ wire TrigHOut, TrigDiv;
 wire [9:0] HorzCount;
 wire [9:0] VertCount;
 
+wire reset = ~resetn;
+
 //Divide the clock frequency
 GenericCounter  #(.COUNTER_WIDTH(1), .COUNTER_MAX(1))
 FreqDivider
 (
 	.CLK(CLK),
-	.RESET(1'b0),
+	.RESET(reset),
 	.ENABLE_IN(1'b1),
 	.TRIG_OUT(TrigDiv)
 );
@@ -76,7 +79,7 @@ GenericCounter  #(.COUNTER_WIDTH(10), .COUNTER_MAX(HorzTimeToFrontPorchEnd))
 HorzAddrCounter
 (
 	.CLK(CLK),
-	.RESET(1'b0),
+	.RESET(reset),
 	.ENABLE_IN(TrigDiv),
 	.TRIG_OUT(TrigHOut),
 	.COUNT(HorzCount)
@@ -87,7 +90,7 @@ GenericCounter  #(.COUNTER_WIDTH(10), .COUNTER_MAX(VertTimeToFrontPorchEnd))
 VertAddrCounter
 (
 	.CLK(CLK),
-	.RESET(1'b0),
+	.RESET(reset),
 	.ENABLE_IN(TrigHOut),
 	.COUNT(VertCount)
 );
@@ -108,20 +111,20 @@ end
 //Color signals
 always@(posedge CLK) begin
 	if ( ( (HorzCount >= HorzTimeToBackPorchEnd ) && (HorzCount < HorzTimeToDisplayTimeEnd) ) &&
-		  ( (VertCount >= VertTimeToBackPorchEnd ) && (VertCount < VertTimeToDisplayTimeEnd) ) ) 
+		  ( (VertCount >= VertTimeToBackPorchEnd ) && (VertCount < VertTimeToDisplayTimeEnd) ) )
 		cout <= COLOUR_IN;
 	else
 		cout <= 8'b00000000;
 end
 
-//output horizontal and vertical addresses 
+//output horizontal and vertical addresses
 always@(posedge CLK)begin
 	if ((HorzCount>HorzTimeToBackPorchEnd)&&(HorzCount<HorzTimeToDisplayTimeEnd))
 		addrh<=HorzCount-HorzTimeToBackPorchEnd;
 	else
 		addrh<=10'b0000000000;
-end	
-	
+end
+
 always@(posedge CLK)begin
 	if ((VertCount>VertTimeToBackPorchEnd)&&(VertCount<VertTimeToDisplayTimeEnd))
 		addrv<=VertCount-VertTimeToBackPorchEnd;
